@@ -1,0 +1,4 @@
+source;share/smip_uav/local_setup.bash
+source;share/smip_uav/local_setup.dsv
+source;share/smip_uav/local_setup.sh
+source;share/smip_uav/local_setup.zsh
