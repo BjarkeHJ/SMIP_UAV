@@ -48,7 +48,7 @@ public:
 private:
     // projection geometry (immutable after construction)
     struct Projection {
-        size_t W, H, ds;
+        size_t W, H, ds; 
         float yaw_min, yaw_max;
         float pitch_min, pitch_max;
         float yaw_scale, pitch_scale;

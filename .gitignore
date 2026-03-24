@@ -1,0 +1,32 @@
+# Build artifacts
+build/
+install/
+log/
+
+# Colcon defaults
+.colcon/
+
+# ROS2 generated files
+*.log
+*.pyc
+__pycache__/
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Python virtual environments (if used)
+venv/
+.env/
+
+# VSCode
+.vscode/
+
+# CLion / JetBrains
+.idea/
+
+# System files
+.DS_Store
+Thumbs.db

@@ -53,7 +53,7 @@ public:
     static constexpr unsigned int MIN_SURFEL_POINTS = 10;
     static constexpr unsigned int MAX_SURFEL_POINTS = 10000;
 
-    Surfel();
+    Surfel() = default;
     explicit Surfel(const Config&);
 
     void update(const std::vector<PointNormal>& pns);

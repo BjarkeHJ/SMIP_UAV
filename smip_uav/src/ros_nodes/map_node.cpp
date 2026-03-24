@@ -25,7 +25,7 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
         std::bind(&SurfelMapNode::pointcloud_data_callback, this, std::placeholders::_1)
     );
 
-    pts_.reserve(240 * 180); // width times height
+    pts_.reserve(240 * 180); // TODO: from sensor config (W x H)
 
     RCLCPP_INFO(this->get_logger(), "SurfelMap node initialized");
 }
@@ -67,19 +67,14 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     sensor_msgs::PointCloud2ConstIterator<float> iter_x(*cloud_msg, "x");
     sensor_msgs::PointCloud2ConstIterator<float> iter_y(*cloud_msg, "y");
     sensor_msgs::PointCloud2ConstIterator<float> iter_z(*cloud_msg, "z");
-
-    
     for (; iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z) {
         pts_.push_back({*iter_x, *iter_y, *iter_z});
     }
 
     // run preprocess
-    Eigen::Vector3f normal_body = tf_.rotation().transpose() * Eigen::Vector3f::UnitZ();
-    Eigen::Vector3f origin_body = tf_.inverse().translation();
     GroundPlane gnd;
-    gnd.normal_z = normal_body;
-    gnd.offset_z = -normal_body.dot(origin_body) - 0.15; // TODO from config/launchfile
-
+    gnd.normal_z = tf_.rotation().transpose() * Eigen::Vector3f::UnitZ();
+    gnd.offset_z = -gnd.normal_z.dot(tf_.inverse().translation());
     current_frame_ = preproc_->process(pts_, &gnd);
 
     // Publish visualization

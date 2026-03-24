@@ -10,8 +10,8 @@
 // ==== INCLUDE SUPPORTED DATA TYPES (Custom) ====
 #include "common/point_types.hpp"
 
-// ==== VISUALIZATION HELPERS ====
-namespace viz_helpers {
+// ==== VISUALIZATION CONVERTERS ====
+namespace viz_convs {
 
 inline sensor_msgs::msg::Image depth_mono8(
         const std::vector<float>& buf,
@@ -62,7 +62,7 @@ inline sensor_msgs::msg::Image normal_rgb8(
     }
     return m;
 }
-} // viz_utils
+} // viz_convs
 
 
 // ==== VISUALIZATION CHANNELS ====
@@ -77,7 +77,7 @@ inline VizChannel<Frame, sensor_msgs::msg::Image> frame_depth(
     ) {
     return viz.create<Frame, sensor_msgs::msg::Image>(subtopic, frame_id, qos,
         [min_range, max_range](const Frame& f, const rclcpp::Time& stamp, const std::string& fid) {
-            return viz_helpers::depth_mono8(
+            return viz_convs::depth_mono8(
                 f.depth_image(),
                 static_cast<uint32_t>(f.W),
                 static_cast<uint32_t>(f.H),
@@ -96,7 +96,7 @@ inline VizChannel<Frame, sensor_msgs::msg::Image> frame_normal(
     ) {
     return viz.create<Frame, sensor_msgs::msg::Image>(subtopic, frame_id, qos,
         [](const Frame& f, const rclcpp::Time& stamp, const std::string& fid) {
-            return viz_helpers::normal_rgb8(
+            return viz_convs::normal_rgb8(
                 f.normal_image(),
                 static_cast<uint32_t>(f.W),
                 static_cast<uint32_t>(f.H),

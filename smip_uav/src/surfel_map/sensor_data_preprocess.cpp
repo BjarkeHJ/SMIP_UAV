@@ -18,7 +18,7 @@ SensorDataPreprocess::SensorDataPreprocess(const Config& config) : config_(confi
     proj_.pitch_max =  vfov * 0.5f;
     proj_.yaw_scale = (config_.tof_res_x  - 1) / hfov;
     proj_.pitch_scale = (config_.tof_res_y - 1) / vfov;
- 
+
     proj_.min_range_sq = config_.min_range * config_.min_range;
     proj_.max_range_sq = config_.max_range * config_.max_range;
 }
@@ -61,6 +61,9 @@ void SensorDataPreprocess::grid_downsample(const std::vector<PointXYZ>& pts, con
             if (z_world < config_.ground_z_min) continue;
         }
  
+        // reject points behind the camera
+        if (pv.x() <= 0.0f) continue;
+
         const float yaw   = std::atan2(pv.y(), pv.x());
         const float pitch = std::atan2(pv.z(), std::hypot(pv.x(), pv.y()));
  
