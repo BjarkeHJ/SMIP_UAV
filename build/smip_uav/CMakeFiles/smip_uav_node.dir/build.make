@@ -83,22 +83,79 @@ CMakeFiles/smip_uav_node.dir/src/smip_exec.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/smip_uav_node.dir/src/smip_exec.cpp.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/airlab/SMIP_UAV/smip_uav/src/smip_exec.cpp -o CMakeFiles/smip_uav_node.dir/src/smip_exec.cpp.s
 
+CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.o: CMakeFiles/smip_uav_node.dir/flags.make
+CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.o: /home/airlab/SMIP_UAV/smip_uav/src/ros_nodes/map_node.cpp
+CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.o: CMakeFiles/smip_uav_node.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/airlab/SMIP_UAV/build/smip_uav/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.o -MF CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.o.d -o CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.o -c /home/airlab/SMIP_UAV/smip_uav/src/ros_nodes/map_node.cpp
+
+CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/airlab/SMIP_UAV/smip_uav/src/ros_nodes/map_node.cpp > CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.i
+
+CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/airlab/SMIP_UAV/smip_uav/src/ros_nodes/map_node.cpp -o CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.s
+
+CMakeFiles/smip_uav_node.dir/src/surfel_map/sensor_data_preprocess.cpp.o: CMakeFiles/smip_uav_node.dir/flags.make
+CMakeFiles/smip_uav_node.dir/src/surfel_map/sensor_data_preprocess.cpp.o: /home/airlab/SMIP_UAV/smip_uav/src/surfel_map/sensor_data_preprocess.cpp
+CMakeFiles/smip_uav_node.dir/src/surfel_map/sensor_data_preprocess.cpp.o: CMakeFiles/smip_uav_node.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/airlab/SMIP_UAV/build/smip_uav/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/smip_uav_node.dir/src/surfel_map/sensor_data_preprocess.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/smip_uav_node.dir/src/surfel_map/sensor_data_preprocess.cpp.o -MF CMakeFiles/smip_uav_node.dir/src/surfel_map/sensor_data_preprocess.cpp.o.d -o CMakeFiles/smip_uav_node.dir/src/surfel_map/sensor_data_preprocess.cpp.o -c /home/airlab/SMIP_UAV/smip_uav/src/surfel_map/sensor_data_preprocess.cpp
+
+CMakeFiles/smip_uav_node.dir/src/surfel_map/sensor_data_preprocess.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/smip_uav_node.dir/src/surfel_map/sensor_data_preprocess.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/airlab/SMIP_UAV/smip_uav/src/surfel_map/sensor_data_preprocess.cpp > CMakeFiles/smip_uav_node.dir/src/surfel_map/sensor_data_preprocess.cpp.i
+
+CMakeFiles/smip_uav_node.dir/src/surfel_map/sensor_data_preprocess.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/smip_uav_node.dir/src/surfel_map/sensor_data_preprocess.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/airlab/SMIP_UAV/smip_uav/src/surfel_map/sensor_data_preprocess.cpp -o CMakeFiles/smip_uav_node.dir/src/surfel_map/sensor_data_preprocess.cpp.s
+
 # Object files for target smip_uav_node
 smip_uav_node_OBJECTS = \
-"CMakeFiles/smip_uav_node.dir/src/smip_exec.cpp.o"
+"CMakeFiles/smip_uav_node.dir/src/smip_exec.cpp.o" \
+"CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.o" \
+"CMakeFiles/smip_uav_node.dir/src/surfel_map/sensor_data_preprocess.cpp.o"
 
 # External object files for target smip_uav_node
 smip_uav_node_EXTERNAL_OBJECTS =
 
 smip_uav_node: CMakeFiles/smip_uav_node.dir/src/smip_exec.cpp.o
+smip_uav_node: CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.o
+smip_uav_node: CMakeFiles/smip_uav_node.dir/src/surfel_map/sensor_data_preprocess.cpp.o
 smip_uav_node: CMakeFiles/smip_uav_node.dir/build.make
+smip_uav_node: /opt/ros/humble/lib/libsensor_msgs__rosidl_typesupport_fastrtps_c.so
+smip_uav_node: /opt/ros/humble/lib/libsensor_msgs__rosidl_typesupport_fastrtps_cpp.so
+smip_uav_node: /opt/ros/humble/lib/libsensor_msgs__rosidl_typesupport_introspection_c.so
+smip_uav_node: /opt/ros/humble/lib/libsensor_msgs__rosidl_typesupport_introspection_cpp.so
+smip_uav_node: /opt/ros/humble/lib/libsensor_msgs__rosidl_generator_py.so
+smip_uav_node: /opt/ros/humble/lib/libstatic_transform_broadcaster_node.so
+smip_uav_node: /opt/ros/humble/lib/libsensor_msgs__rosidl_typesupport_c.so
+smip_uav_node: /opt/ros/humble/lib/libsensor_msgs__rosidl_generator_c.so
+smip_uav_node: /opt/ros/humble/lib/libsensor_msgs__rosidl_typesupport_cpp.so
+smip_uav_node: /opt/ros/humble/lib/libtf2_ros.so
+smip_uav_node: /opt/ros/humble/lib/libmessage_filters.so
+smip_uav_node: /opt/ros/humble/lib/librclcpp_action.so
 smip_uav_node: /opt/ros/humble/lib/librclcpp.so
 smip_uav_node: /opt/ros/humble/lib/liblibstatistics_collector.so
+smip_uav_node: /opt/ros/humble/lib/librosgraph_msgs__rosidl_typesupport_fastrtps_c.so
+smip_uav_node: /opt/ros/humble/lib/librosgraph_msgs__rosidl_typesupport_fastrtps_cpp.so
+smip_uav_node: /opt/ros/humble/lib/librosgraph_msgs__rosidl_typesupport_introspection_c.so
+smip_uav_node: /opt/ros/humble/lib/librosgraph_msgs__rosidl_typesupport_introspection_cpp.so
+smip_uav_node: /opt/ros/humble/lib/librosgraph_msgs__rosidl_typesupport_cpp.so
+smip_uav_node: /opt/ros/humble/lib/librosgraph_msgs__rosidl_generator_py.so
+smip_uav_node: /opt/ros/humble/lib/librosgraph_msgs__rosidl_typesupport_c.so
+smip_uav_node: /opt/ros/humble/lib/librosgraph_msgs__rosidl_generator_c.so
+smip_uav_node: /opt/ros/humble/lib/libstatistics_msgs__rosidl_typesupport_fastrtps_c.so
+smip_uav_node: /opt/ros/humble/lib/libstatistics_msgs__rosidl_typesupport_fastrtps_cpp.so
+smip_uav_node: /opt/ros/humble/lib/libstatistics_msgs__rosidl_typesupport_introspection_c.so
+smip_uav_node: /opt/ros/humble/lib/libstatistics_msgs__rosidl_typesupport_introspection_cpp.so
+smip_uav_node: /opt/ros/humble/lib/libstatistics_msgs__rosidl_typesupport_cpp.so
+smip_uav_node: /opt/ros/humble/lib/libstatistics_msgs__rosidl_generator_py.so
+smip_uav_node: /opt/ros/humble/lib/libstatistics_msgs__rosidl_typesupport_c.so
+smip_uav_node: /opt/ros/humble/lib/libstatistics_msgs__rosidl_generator_c.so
+smip_uav_node: /opt/ros/humble/lib/librcl_action.so
 smip_uav_node: /opt/ros/humble/lib/librcl.so
-smip_uav_node: /opt/ros/humble/lib/librmw_implementation.so
-smip_uav_node: /opt/ros/humble/lib/libament_index_cpp.so
-smip_uav_node: /opt/ros/humble/lib/librcl_logging_spdlog.so
-smip_uav_node: /opt/ros/humble/lib/librcl_logging_interface.so
 smip_uav_node: /opt/ros/humble/lib/librcl_interfaces__rosidl_typesupport_fastrtps_c.so
 smip_uav_node: /opt/ros/humble/lib/librcl_interfaces__rosidl_typesupport_introspection_c.so
 smip_uav_node: /opt/ros/humble/lib/librcl_interfaces__rosidl_typesupport_fastrtps_cpp.so
@@ -109,45 +166,74 @@ smip_uav_node: /opt/ros/humble/lib/librcl_interfaces__rosidl_typesupport_c.so
 smip_uav_node: /opt/ros/humble/lib/librcl_interfaces__rosidl_generator_c.so
 smip_uav_node: /opt/ros/humble/lib/librcl_yaml_param_parser.so
 smip_uav_node: /opt/ros/humble/lib/libyaml.so
-smip_uav_node: /opt/ros/humble/lib/librosgraph_msgs__rosidl_typesupport_fastrtps_c.so
-smip_uav_node: /opt/ros/humble/lib/librosgraph_msgs__rosidl_typesupport_fastrtps_cpp.so
-smip_uav_node: /opt/ros/humble/lib/librosgraph_msgs__rosidl_typesupport_introspection_c.so
-smip_uav_node: /opt/ros/humble/lib/librosgraph_msgs__rosidl_typesupport_introspection_cpp.so
-smip_uav_node: /opt/ros/humble/lib/librosgraph_msgs__rosidl_typesupport_cpp.so
-smip_uav_node: /opt/ros/humble/lib/librosgraph_msgs__rosidl_generator_py.so
-smip_uav_node: /opt/ros/humble/lib/librosgraph_msgs__rosidl_typesupport_c.so
-smip_uav_node: /opt/ros/humble/lib/librosgraph_msgs__rosidl_generator_c.so
-smip_uav_node: /opt/ros/humble/lib/libstatistics_msgs__rosidl_typesupport_fastrtps_c.so
+smip_uav_node: /opt/ros/humble/lib/libtracetools.so
+smip_uav_node: /opt/ros/humble/lib/librmw_implementation.so
+smip_uav_node: /opt/ros/humble/lib/libament_index_cpp.so
+smip_uav_node: /opt/ros/humble/lib/librcl_logging_spdlog.so
+smip_uav_node: /opt/ros/humble/lib/librcl_logging_interface.so
+smip_uav_node: /opt/ros/humble/lib/libtf2_msgs__rosidl_typesupport_fastrtps_c.so
+smip_uav_node: /opt/ros/humble/lib/libaction_msgs__rosidl_typesupport_fastrtps_c.so
+smip_uav_node: /opt/ros/humble/lib/libunique_identifier_msgs__rosidl_typesupport_fastrtps_c.so
+smip_uav_node: /opt/ros/humble/lib/libtf2_msgs__rosidl_typesupport_introspection_c.so
+smip_uav_node: /opt/ros/humble/lib/libaction_msgs__rosidl_typesupport_introspection_c.so
+smip_uav_node: /opt/ros/humble/lib/libunique_identifier_msgs__rosidl_typesupport_introspection_c.so
+smip_uav_node: /opt/ros/humble/lib/libtf2_msgs__rosidl_typesupport_fastrtps_cpp.so
+smip_uav_node: /opt/ros/humble/lib/libaction_msgs__rosidl_typesupport_fastrtps_cpp.so
+smip_uav_node: /opt/ros/humble/lib/libunique_identifier_msgs__rosidl_typesupport_fastrtps_cpp.so
+smip_uav_node: /opt/ros/humble/lib/libtf2_msgs__rosidl_typesupport_introspection_cpp.so
+smip_uav_node: /opt/ros/humble/lib/libaction_msgs__rosidl_typesupport_introspection_cpp.so
+smip_uav_node: /opt/ros/humble/lib/libunique_identifier_msgs__rosidl_typesupport_introspection_cpp.so
+smip_uav_node: /opt/ros/humble/lib/libtf2_msgs__rosidl_typesupport_cpp.so
+smip_uav_node: /opt/ros/humble/lib/libaction_msgs__rosidl_typesupport_cpp.so
+smip_uav_node: /opt/ros/humble/lib/libunique_identifier_msgs__rosidl_typesupport_cpp.so
+smip_uav_node: /opt/ros/humble/lib/libtf2_msgs__rosidl_generator_py.so
+smip_uav_node: /opt/ros/humble/lib/libtf2_msgs__rosidl_typesupport_c.so
+smip_uav_node: /opt/ros/humble/lib/libtf2_msgs__rosidl_generator_c.so
+smip_uav_node: /opt/ros/humble/lib/libaction_msgs__rosidl_generator_py.so
+smip_uav_node: /opt/ros/humble/lib/libaction_msgs__rosidl_typesupport_c.so
+smip_uav_node: /opt/ros/humble/lib/libaction_msgs__rosidl_generator_c.so
+smip_uav_node: /opt/ros/humble/lib/libunique_identifier_msgs__rosidl_generator_py.so
+smip_uav_node: /opt/ros/humble/lib/libunique_identifier_msgs__rosidl_typesupport_c.so
+smip_uav_node: /opt/ros/humble/lib/libunique_identifier_msgs__rosidl_generator_c.so
+smip_uav_node: /opt/ros/humble/lib/libtf2.so
+smip_uav_node: /opt/ros/humble/lib/libgeometry_msgs__rosidl_typesupport_fastrtps_c.so
+smip_uav_node: /opt/ros/humble/lib/libstd_msgs__rosidl_typesupport_fastrtps_c.so
 smip_uav_node: /opt/ros/humble/lib/libbuiltin_interfaces__rosidl_typesupport_fastrtps_c.so
 smip_uav_node: /opt/ros/humble/lib/librosidl_typesupport_fastrtps_c.so
-smip_uav_node: /opt/ros/humble/lib/libstatistics_msgs__rosidl_typesupport_fastrtps_cpp.so
+smip_uav_node: /opt/ros/humble/lib/libgeometry_msgs__rosidl_typesupport_fastrtps_cpp.so
+smip_uav_node: /opt/ros/humble/lib/libstd_msgs__rosidl_typesupport_fastrtps_cpp.so
 smip_uav_node: /opt/ros/humble/lib/libbuiltin_interfaces__rosidl_typesupport_fastrtps_cpp.so
 smip_uav_node: /opt/ros/humble/lib/librosidl_typesupport_fastrtps_cpp.so
-smip_uav_node: /opt/ros/humble/lib/librmw.so
 smip_uav_node: /opt/ros/humble/lib/libfastcdr.so.1.0.29
-smip_uav_node: /opt/ros/humble/lib/libstatistics_msgs__rosidl_typesupport_introspection_c.so
+smip_uav_node: /opt/ros/humble/lib/librmw.so
+smip_uav_node: /opt/ros/humble/lib/libgeometry_msgs__rosidl_typesupport_introspection_c.so
+smip_uav_node: /opt/ros/humble/lib/libstd_msgs__rosidl_typesupport_introspection_c.so
 smip_uav_node: /opt/ros/humble/lib/libbuiltin_interfaces__rosidl_typesupport_introspection_c.so
-smip_uav_node: /opt/ros/humble/lib/libstatistics_msgs__rosidl_typesupport_introspection_cpp.so
+smip_uav_node: /opt/ros/humble/lib/libgeometry_msgs__rosidl_typesupport_introspection_cpp.so
+smip_uav_node: /opt/ros/humble/lib/libstd_msgs__rosidl_typesupport_introspection_cpp.so
 smip_uav_node: /opt/ros/humble/lib/libbuiltin_interfaces__rosidl_typesupport_introspection_cpp.so
 smip_uav_node: /opt/ros/humble/lib/librosidl_typesupport_introspection_cpp.so
 smip_uav_node: /opt/ros/humble/lib/librosidl_typesupport_introspection_c.so
-smip_uav_node: /opt/ros/humble/lib/libstatistics_msgs__rosidl_typesupport_cpp.so
+smip_uav_node: /opt/ros/humble/lib/libgeometry_msgs__rosidl_typesupport_cpp.so
+smip_uav_node: /opt/ros/humble/lib/libstd_msgs__rosidl_typesupport_cpp.so
 smip_uav_node: /opt/ros/humble/lib/libbuiltin_interfaces__rosidl_typesupport_cpp.so
 smip_uav_node: /opt/ros/humble/lib/librosidl_typesupport_cpp.so
-smip_uav_node: /opt/ros/humble/lib/libstatistics_msgs__rosidl_generator_py.so
+smip_uav_node: /opt/ros/humble/lib/libgeometry_msgs__rosidl_generator_py.so
+smip_uav_node: /opt/ros/humble/lib/libgeometry_msgs__rosidl_typesupport_c.so
+smip_uav_node: /opt/ros/humble/lib/libgeometry_msgs__rosidl_generator_c.so
+smip_uav_node: /opt/ros/humble/lib/libstd_msgs__rosidl_generator_py.so
 smip_uav_node: /opt/ros/humble/lib/libbuiltin_interfaces__rosidl_generator_py.so
-smip_uav_node: /opt/ros/humble/lib/libstatistics_msgs__rosidl_typesupport_c.so
+smip_uav_node: /opt/ros/humble/lib/libstd_msgs__rosidl_typesupport_c.so
 smip_uav_node: /opt/ros/humble/lib/libbuiltin_interfaces__rosidl_typesupport_c.so
-smip_uav_node: /opt/ros/humble/lib/libstatistics_msgs__rosidl_generator_c.so
+smip_uav_node: /opt/ros/humble/lib/libstd_msgs__rosidl_generator_c.so
 smip_uav_node: /opt/ros/humble/lib/libbuiltin_interfaces__rosidl_generator_c.so
 smip_uav_node: /opt/ros/humble/lib/librosidl_typesupport_c.so
 smip_uav_node: /opt/ros/humble/lib/librcpputils.so
 smip_uav_node: /opt/ros/humble/lib/librosidl_runtime_c.so
 smip_uav_node: /opt/ros/humble/lib/librcutils.so
 smip_uav_node: /usr/lib/x86_64-linux-gnu/libpython3.10.so
-smip_uav_node: /opt/ros/humble/lib/libtracetools.so
 smip_uav_node: CMakeFiles/smip_uav_node.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/airlab/SMIP_UAV/build/smip_uav/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX executable smip_uav_node"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/airlab/SMIP_UAV/build/smip_uav/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Linking CXX executable smip_uav_node"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/smip_uav_node.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

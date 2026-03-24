@@ -6,8 +6,14 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
     // Declare parameters
     declare_parameters();
 
-    preproc_ = std::make_unique<SensorDataPreprocess>();
+    // Visualizer
+    viz_ = std::make_unique<Visualizer>(this, "/smip");
+    depth_ch_ = viz_channels::frame_depth(*viz_, tof_frame_, "tof_depth", rclcpp::SensorDataQoS(), 0.1f, 10.0f); // TODO: ranges from sensor config
+    normal_ch_ = viz_channels::frame_normal(*viz_, tof_frame_, "tof_normal", rclcpp::SensorDataQoS());
 
+    // Preprocessing
+    preproc_ = std::make_unique<SensorDataPreprocess>(SensorDataPreprocess::Config{});
+    
     // ROS2 TF
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_unique<tf2_ros::TransformListener>(*tf_buffer_);
@@ -25,8 +31,13 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
 }
 
 void SurfelMapNode::declare_parameters() {
-    //TODO
-    return;
+    this->declare_parameter("global_frame", "odom");
+    this->declare_parameter("sensor_tof_frame", "lidar_frame");
+    this->declare_parameter("pointcloud_topic", "/x500/lidar_front/points_raw");
+
+    global_frame_ = this->get_parameter("global_frame").as_string();
+    tof_frame_ = this->get_parameter("sensor_tof_frame").as_string();
+    pointcloud_topic_ = this->get_parameter("pointcloud_topic").as_string();
 }
 
 bool SurfelMapNode::get_transform(const rclcpp::Time& ts) {
@@ -57,12 +68,23 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     sensor_msgs::PointCloud2ConstIterator<float> iter_y(*cloud_msg, "y");
     sensor_msgs::PointCloud2ConstIterator<float> iter_z(*cloud_msg, "z");
 
+    
     for (; iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z) {
         pts_.push_back({*iter_x, *iter_y, *iter_z});
     }
 
+    // run preprocess
+    Eigen::Vector3f normal_body = tf_.rotation().transpose() * Eigen::Vector3f::UnitZ();
+    Eigen::Vector3f origin_body = tf_.inverse().translation();
+    GroundPlane gnd;
+    gnd.normal_z = normal_body;
+    gnd.offset_z = -normal_body.dot(origin_body) - 0.15; // TODO from config/launchfile
 
+    current_frame_ = preproc_->process(pts_, &gnd);
 
+    // Publish visualization
+    depth_ch_.publish(current_frame_, this->get_clock()->now());
+    normal_ch_.publish(current_frame_, this->get_clock()->now());
 }
 
 

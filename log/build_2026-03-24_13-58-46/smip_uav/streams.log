@@ -1,0 +1,65 @@
+[0.008s] Invoking command in '/home/airlab/SMIP_UAV/build/smip_uav': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake /home/airlab/SMIP_UAV/smip_uav -DCMAKE_INSTALL_PREFIX=/home/airlab/SMIP_UAV/install/smip_uav
+[0.061s] -- The C compiler identification is GNU 11.4.0
+[0.114s] -- The CXX compiler identification is GNU 11.4.0
+[0.120s] -- Detecting C compiler ABI info
+[0.200s] -- Detecting C compiler ABI info - done
+[0.213s] -- Check for working C compiler: /usr/bin/cc - skipped
+[0.213s] -- Detecting C compile features
+[0.213s] -- Detecting C compile features - done
+[0.219s] -- Detecting CXX compiler ABI info
+[0.289s] -- Detecting CXX compiler ABI info - done
+[0.297s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[0.297s] -- Detecting CXX compile features
+[0.298s] -- Detecting CXX compile features - done
+[0.300s] -- Found ament_cmake: 1.3.14 (/opt/ros/humble/share/ament_cmake/cmake)
+[0.672s] -- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter 
+[0.767s] -- Found rclcpp: 16.0.18 (/opt/ros/humble/share/rclcpp/cmake)
+[0.808s] -- Found rosidl_generator_c: 3.1.8 (/opt/ros/humble/share/rosidl_generator_c/cmake)
+[0.813s] -- Found rosidl_adapter: 3.1.8 (/opt/ros/humble/share/rosidl_adapter/cmake)
+[0.822s] -- Found rosidl_generator_cpp: 3.1.8 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)
+[0.834s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[0.848s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[0.888s] -- Found rmw_implementation_cmake: 6.1.2 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)
+[0.890s] -- Found rmw_fastrtps_cpp: 6.2.10 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)
+[0.966s] -- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.2")  
+[0.992s] -- Found FastRTPS: /opt/ros/humble/include  
+[1.035s] -- Using RMW implementation 'rmw_fastrtps_cpp' as default
+[1.042s] -- Looking for pthread.h
+[1.108s] -- Looking for pthread.h - found
+[1.108s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+[1.179s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+[1.180s] -- Found Threads: TRUE  
+[1.234s] -- Found tf2_ros: 0.25.19 (/opt/ros/humble/share/tf2_ros/cmake)
+[1.346s] -- Found tf2_eigen: 0.25.19 (/opt/ros/humble/share/tf2_eigen/cmake)
+[1.355s] -- Found sensor_msgs: 4.9.1 (/opt/ros/humble/share/sensor_msgs/cmake)
+[1.440s] -- Configuring done
+[1.451s] -- Generating done
+[1.454s] -- Build files have been written to: /home/airlab/SMIP_UAV/build/smip_uav
+[1.466s] Invoked command in '/home/airlab/SMIP_UAV/build/smip_uav' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake /home/airlab/SMIP_UAV/smip_uav -DCMAKE_INSTALL_PREFIX=/home/airlab/SMIP_UAV/install/smip_uav
+[1.468s] Invoking command in '/home/airlab/SMIP_UAV/build/smip_uav': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --build /home/airlab/SMIP_UAV/build/smip_uav -- -j8 -l8
+[1.510s] [ 75%] [32mBuilding CXX object CMakeFiles/smip_uav_node.dir/src/surfel_map/sensor_data_preprocess.cpp.o[0m
+[1.510s] [ 75%] [32mBuilding CXX object CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.o[0m
+[1.510s] [ 75%] [32mBuilding CXX object CMakeFiles/smip_uav_node.dir/src/smip_exec.cpp.o[0m
+[15.669s] [100%] [32m[1mLinking CXX executable smip_uav_node[0m
+[15.833s] [100%] Built target smip_uav_node
+[15.842s] Invoked command in '/home/airlab/SMIP_UAV/build/smip_uav' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --build /home/airlab/SMIP_UAV/build/smip_uav -- -j8 -l8
+[15.852s] Invoking command in '/home/airlab/SMIP_UAV/build/smip_uav': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --install /home/airlab/SMIP_UAV/build/smip_uav
+[15.860s] -- Install configuration: ""
+[15.860s] -- Installing: /home/airlab/SMIP_UAV/install/smip_uav/lib/smip_uav/smip_uav_node
+[15.860s] -- Set runtime path of "/home/airlab/SMIP_UAV/install/smip_uav/lib/smip_uav/smip_uav_node" to ""
+[15.860s] -- Installing: /home/airlab/SMIP_UAV/install/smip_uav/share/ament_index/resource_index/package_run_dependencies/smip_uav
+[15.860s] -- Installing: /home/airlab/SMIP_UAV/install/smip_uav/share/ament_index/resource_index/parent_prefix_path/smip_uav
+[15.860s] -- Installing: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/environment/ament_prefix_path.sh
+[15.861s] -- Installing: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/environment/ament_prefix_path.dsv
+[15.861s] -- Installing: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/environment/path.sh
+[15.862s] -- Installing: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/environment/path.dsv
+[15.863s] -- Installing: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/local_setup.bash
+[15.863s] -- Installing: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/local_setup.sh
+[15.863s] -- Installing: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/local_setup.zsh
+[15.863s] -- Installing: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/local_setup.dsv
+[15.863s] -- Installing: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/package.dsv
+[15.863s] -- Installing: /home/airlab/SMIP_UAV/install/smip_uav/share/ament_index/resource_index/packages/smip_uav
+[15.863s] -- Installing: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/cmake/smip_uavConfig.cmake
+[15.863s] -- Installing: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/cmake/smip_uavConfig-version.cmake
+[15.863s] -- Installing: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/package.xml
+[15.865s] Invoked command in '/home/airlab/SMIP_UAV/build/smip_uav' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --install /home/airlab/SMIP_UAV/build/smip_uav

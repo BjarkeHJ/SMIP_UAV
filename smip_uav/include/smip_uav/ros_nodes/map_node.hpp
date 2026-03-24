@@ -12,6 +12,9 @@
 #include "surfel_map/sensor_data_preprocess.hpp"
 #include "surfel_map/surfel_map.hpp"
 
+#include "common/stop_watch.hpp"
+#include "viz_utils/viz_utils.hpp"
+
 namespace smip_uav {
 
 class SurfelMapNode : public rclcpp::Node {
@@ -42,7 +45,15 @@ private:
     // Buffers/Variables
     std::vector<PointXYZ> pts_;
     Eigen::Isometry3f tf_;
+    Frame current_frame_;
     
+    // Visualization
+    std::unique_ptr<Visualizer> viz_;
+    VizChannel<Frame, sensor_msgs::msg::Image> depth_ch_;
+    VizChannel<Frame, sensor_msgs::msg::Image> normal_ch_;
+
+    // Timing
+    StopWatch clock_;
 };
 
 } // smip_uav

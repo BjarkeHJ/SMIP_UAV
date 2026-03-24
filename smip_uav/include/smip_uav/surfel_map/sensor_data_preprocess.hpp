@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <Eigen/Core>
+#include <Eigen/Geometry>
 #include "common/point_types.hpp"
 
 namespace smip_uav {
@@ -21,9 +22,6 @@ struct GroundPlane {
 class SensorDataPreprocess {
 public:
     struct Config {
-        bool enable_ground_filter{false};
-        float ground_z_min{0.2f};
-
         // Sensor specs
         size_t tof_res_x{240};
         size_t tof_res_y{180};
@@ -31,21 +29,21 @@ public:
         float vfov_deg{86.0f};
         float min_range{0.1f};
         float max_range{10.0f};
-
+        
+        // Preprocessing
+        bool enable_ground_filter{true};
+        float ground_z_min{0.15f};
         int ds_factor{1};
         int normal_est_px_radius{3};
-
-        size_t smooth_iters{3};
-        float depth_sigma_m{0.05f};
-        float spatial_sigma_px{1.0f};
-        float max_depth_jump_m{0.1f};
+        float jump_thresh{0.15};
     };
 
-    explicit SensorDataPreprocess(const Config& config = {});
+    SensorDataPreprocess() = default;
+    explicit SensorDataPreprocess(const Config& config);
 
     // Process the input pts (with optional ground plane filter)
-    // return vector of points with corresponding normals and measurement weight
-    std::vector<PointNormal> process(const std::vector<PointXYZ>& pts, const GroundPlane* gnd = nullptr) const;
+    // return Frame datatype containing point, normal, weight information and can construct 2D images as well (depth, normal, weight)
+    Frame process(const std::vector<PointXYZ>& pts, const GroundPlane* gnd = nullptr) const;
 
 private:
     // projection geometry (immutable after construction)
@@ -62,21 +60,16 @@ private:
     struct Workspace {
         std::vector<GridCell> grid;
         std::vector<float> range_img;
-        std::vector<float> range_img_smooth;
-        std::vector<float> temp;
 
         void resize(size_t n) {
             grid.resize(n);
             range_img.resize(n);
-            range_img_smooth.resize(n);
-            temp.resize(n);
         }
     };
 
     void grid_downsample(const std::vector<PointXYZ>& pts, const GroundPlane* gnd, Workspace& ws) const;
     void build_range_image(Workspace& ws) const;
-    void smooth_range_image(Workspace& ws) const;
-    void estimate_normals(const Workspace& ws, std::vector<PointNormal>& pns_out) const;
+    void estimate_normals(const Workspace& ws, Frame& frame_out) const;
 
     Config config_;
     Projection proj_;

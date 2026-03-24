@@ -1,0 +1,130 @@
+[0.000000] (-) TimerEvent: {}
+[0.000401] (smip_uav) JobQueued: {'identifier': 'smip_uav', 'dependencies': OrderedDict()}
+[0.000733] (smip_uav) JobStarted: {'identifier': 'smip_uav'}
+[0.009344] (smip_uav) JobProgress: {'identifier': 'smip_uav', 'progress': 'cmake'}
+[0.009663] (smip_uav) JobProgress: {'identifier': 'smip_uav', 'progress': 'build'}
+[0.010404] (smip_uav) Command: {'cmd': ['/usr/bin/cmake', '--build', '/home/airlab/SMIP_UAV/build/smip_uav', '--', '-j8', '-l8'], 'cwd': '/home/airlab/SMIP_UAV/build/smip_uav', 'env': OrderedDict([('GJS_DEBUG_TOPICS', 'JS ERROR;JS LOG'), ('LESSOPEN', '| /usr/bin/lesspipe %s'), ('LANGUAGE', 'en_US:en'), ('USER', 'airlab'), ('VOXL_IP', '192.168.8.1'), ('XDG_SESSION_TYPE', 'x11'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib'), ('HOME', '/home/airlab'), ('CHROME_DESKTOP', 'tabby.desktop'), ('CONDA_SHLVL', '0'), ('DESKTOP_SESSION', 'ubuntu'), ('GIO_LAUNCHED_DESKTOP_FILE', '/usr/share/applications/tabby.desktop'), ('STATION_HOTSPOT_IP', '10.42.0.157'), ('ROS_PYTHON_VERSION', '3'), ('GNOME_SHELL_SESSION_MODE', 'ubuntu'), ('GTK_MODULES', 'gail:atk-bridge'), ('MANAGERPID', '2205'), ('SYSTEMD_EXEC_PID', '2454'), ('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus'), ('COLORTERM', 'truecolor'), ('_CE_M', ''), ('GIO_LAUNCHED_DESKTOP_FILE_PID', '6641'), ('COLCON_PREFIX_PATH', '/home/airlab/SMIP_UAV/install'), ('ROS_DISTRO', 'humble'), ('GTK_IM_MODULE', 'ibus'), ('TABBY_PLUGINS', ''), ('LOGNAME', 'airlab'), ('JOURNAL_STREAM', '8:20646'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('XDG_SESSION_CLASS', 'user'), ('USERNAME', 'airlab'), ('TERM', 'xterm-256color'), ('GNOME_DESKTOP_SESSION_ID', 'this-is-deprecated'), ('_CE_CONDA', ''), ('ROS_LOCALHOST_ONLY', '0'), ('WINDOWPATH', '2'), ('PATH', '/home/airlab/.local/bin:/home/airlab/miniconda3/condabin:/opt/ros/humble/bin:/home/airlab/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin'), ('SESSION_MANAGER', 'local/airlab-Predator-PO3-600:@/tmp/.ICE-unix/2429,unix/airlab-Predator-PO3-600:/tmp/.ICE-unix/2429'), ('INVOCATION_ID', '2abf75bb19c7411cba7506ca04814b46'), ('XDG_MENU_PREFIX', 'gnome-'), ('XDG_RUNTIME_DIR', '/run/user/1000'), ('GDK_BACKEND', 'x11'), ('DISPLAY', ':1'), ('LANG', 'en_US.UTF-8'), ('XDG_CURRENT_DESKTOP', 'Unity'), ('XMODIFIERS', '@im=ibus'), ('XDG_SESSION_DESKTOP', 'ubuntu'), ('XAUTHORITY', '/run/user/1000/gdm/Xauthority'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('TERM_PROGRAM', 'Tabby'), ('SSH_AGENT_LAUNCHER', 'openssh'), ('SSH_AUTH_SOCK', '/run/user/1000/openssh_agent'), ('AMENT_PREFIX_PATH', '/home/airlab/SMIP_UAV/install/smip_uav:/opt/ros/humble'), ('CONDA_PYTHON_EXE', '/home/airlab/miniconda3/bin/python'), ('ORIGINAL_XDG_CURRENT_DESKTOP', 'ubuntu:GNOME'), ('SHELL', '/bin/bash'), ('NODE_PATH', 'undefined:/opt/Tabby/resources/builtin-plugins:/opt/Tabby/resources/app.asar/node_modules:/home/airlab/.config/tabby/plugins/node_modules'), ('QT_ACCESSIBILITY', '1'), ('GDMSESSION', 'ubuntu'), ('LESSCLOSE', '/usr/bin/lesspipe %s %s'), ('GPG_AGENT_INFO', '/run/user/1000/gnupg/S.gpg-agent:0:1'), ('GJS_DEBUG_OUTPUT', 'stderr'), ('QT_IM_MODULE', 'ibus'), ('TABBY_CONFIG_DIRECTORY', '/home/airlab/.config/tabby'), ('PWD', '/home/airlab/SMIP_UAV/build/smip_uav'), ('LC_ALL', 'en_US.UTF-8'), ('XDG_CONFIG_DIRS', '/etc/xdg/xdg-ubuntu:/etc/xdg'), ('CONDA_EXE', '/home/airlab/miniconda3/bin/conda'), ('XDG_DATA_DIRS', '/usr/share/ubuntu:/usr/share/gnome:/usr/local/share/:/usr/share/:/var/lib/snapd/desktop'), ('PYTHONPATH', '/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('COLCON', '1'), ('CMAKE_PREFIX_PATH', '/home/airlab/SMIP_UAV/install/smip_uav:/opt/ros/humble')]), 'shell': False}
+[0.056528] (smip_uav) StdoutLine: {'line': b'\x1b[35m\x1b[1mConsolidate compiler generated dependencies of target smip_uav_node\x1b[0m\n'}
+[0.080678] (smip_uav) StdoutLine: {'line': b'[ 75%] \x1b[32mBuilding CXX object CMakeFiles/smip_uav_node.dir/src/smip_exec.cpp.o\x1b[0m\n'}
+[0.080837] (smip_uav) StdoutLine: {'line': b'[ 75%] \x1b[32mBuilding CXX object CMakeFiles/smip_uav_node.dir/src/surfel_map/sensor_data_preprocess.cpp.o\x1b[0m\n'}
+[0.080905] (smip_uav) StdoutLine: {'line': b'[ 75%] \x1b[32mBuilding CXX object CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.o\x1b[0m\n'}
+[0.101028] (-) TimerEvent: {}
+[0.201303] (-) TimerEvent: {}
+[0.301673] (-) TimerEvent: {}
+[0.406065] (-) TimerEvent: {}
+[0.507442] (-) TimerEvent: {}
+[0.607816] (-) TimerEvent: {}
+[0.708831] (-) TimerEvent: {}
+[0.810615] (-) TimerEvent: {}
+[0.910926] (-) TimerEvent: {}
+[1.011221] (-) TimerEvent: {}
+[1.111477] (-) TimerEvent: {}
+[1.212036] (-) TimerEvent: {}
+[1.312373] (-) TimerEvent: {}
+[1.413174] (-) TimerEvent: {}
+[1.517396] (-) TimerEvent: {}
+[1.617679] (-) TimerEvent: {}
+[1.717950] (-) TimerEvent: {}
+[1.818285] (-) TimerEvent: {}
+[1.918569] (-) TimerEvent: {}
+[2.018817] (-) TimerEvent: {}
+[2.119046] (-) TimerEvent: {}
+[2.219279] (-) TimerEvent: {}
+[2.319510] (-) TimerEvent: {}
+[2.419732] (-) TimerEvent: {}
+[2.520126] (-) TimerEvent: {}
+[2.620407] (-) TimerEvent: {}
+[2.720793] (-) TimerEvent: {}
+[2.821128] (-) TimerEvent: {}
+[2.921422] (-) TimerEvent: {}
+[3.021722] (-) TimerEvent: {}
+[3.121987] (-) TimerEvent: {}
+[3.222220] (-) TimerEvent: {}
+[3.322533] (-) TimerEvent: {}
+[3.422832] (-) TimerEvent: {}
+[3.523153] (-) TimerEvent: {}
+[3.623502] (-) TimerEvent: {}
+[3.723796] (-) TimerEvent: {}
+[3.824020] (-) TimerEvent: {}
+[3.924249] (-) TimerEvent: {}
+[4.024502] (-) TimerEvent: {}
+[4.124824] (-) TimerEvent: {}
+[4.225263] (-) TimerEvent: {}
+[4.325650] (-) TimerEvent: {}
+[4.426035] (-) TimerEvent: {}
+[4.526958] (-) TimerEvent: {}
+[4.627206] (-) TimerEvent: {}
+[4.727449] (-) TimerEvent: {}
+[4.827771] (-) TimerEvent: {}
+[4.928028] (-) TimerEvent: {}
+[5.028283] (-) TimerEvent: {}
+[5.128594] (-) TimerEvent: {}
+[5.228844] (-) TimerEvent: {}
+[5.329164] (-) TimerEvent: {}
+[5.429571] (-) TimerEvent: {}
+[5.529904] (-) TimerEvent: {}
+[5.637117] (-) TimerEvent: {}
+[5.737375] (-) TimerEvent: {}
+[5.837650] (-) TimerEvent: {}
+[5.937963] (-) TimerEvent: {}
+[6.038237] (-) TimerEvent: {}
+[6.138505] (-) TimerEvent: {}
+[6.238928] (-) TimerEvent: {}
+[6.340815] (-) TimerEvent: {}
+[6.441842] (-) TimerEvent: {}
+[6.542186] (-) TimerEvent: {}
+[6.642598] (-) TimerEvent: {}
+[6.742953] (-) TimerEvent: {}
+[6.843420] (-) TimerEvent: {}
+[6.944257] (-) TimerEvent: {}
+[7.044577] (-) TimerEvent: {}
+[7.144872] (-) TimerEvent: {}
+[7.245161] (-) TimerEvent: {}
+[7.345481] (-) TimerEvent: {}
+[7.445722] (-) TimerEvent: {}
+[7.546040] (-) TimerEvent: {}
+[7.646405] (-) TimerEvent: {}
+[7.747003] (-) TimerEvent: {}
+[7.847829] (-) TimerEvent: {}
+[7.949329] (-) TimerEvent: {}
+[8.052621] (-) TimerEvent: {}
+[8.152921] (-) TimerEvent: {}
+[8.253238] (-) TimerEvent: {}
+[8.353531] (-) TimerEvent: {}
+[8.454648] (-) TimerEvent: {}
+[8.556107] (-) TimerEvent: {}
+[8.656474] (-) TimerEvent: {}
+[8.757243] (-) TimerEvent: {}
+[8.858068] (-) TimerEvent: {}
+[8.958395] (-) TimerEvent: {}
+[9.063015] (-) TimerEvent: {}
+[9.163318] (-) TimerEvent: {}
+[9.263595] (-) TimerEvent: {}
+[9.363979] (-) TimerEvent: {}
+[9.464437] (-) TimerEvent: {}
+[9.564926] (-) TimerEvent: {}
+[9.665950] (-) TimerEvent: {}
+[9.766259] (-) TimerEvent: {}
+[9.866555] (-) TimerEvent: {}
+[9.966893] (-) TimerEvent: {}
+[10.067330] (-) TimerEvent: {}
+[10.167646] (-) TimerEvent: {}
+[10.267884] (-) TimerEvent: {}
+[10.369029] (-) TimerEvent: {}
+[10.469311] (-) TimerEvent: {}
+[10.570081] (-) TimerEvent: {}
+[10.670406] (-) TimerEvent: {}
+[10.770629] (-) TimerEvent: {}
+[10.870852] (-) TimerEvent: {}
+[10.971079] (-) TimerEvent: {}
+[11.071310] (-) TimerEvent: {}
+[11.171540] (-) TimerEvent: {}
+[11.206125] (smip_uav) StderrLine: {'line': b'gmake[2]: *** [CMakeFiles/smip_uav_node.dir/build.make:90: CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.o] Interrupt\n'}
+[11.206362] (smip_uav) StderrLine: {'line': b'gmake[1]: *** [CMakeFiles/Makefile2:137: CMakeFiles/smip_uav_node.dir/all] Interrupt\n'}
+[11.206492] (smip_uav) StderrLine: {'line': b'gmake: *** wait: No child processes.  Stop.\n'}
+[11.206556] (smip_uav) StderrLine: {'line': b'gmake: *** Waiting for unfinished jobs....\n'}
+[11.206611] (smip_uav) StderrLine: {'line': b'gmake: *** wait: No child processes.  Stop.\n'}
+[11.255463] (smip_uav) CommandEnded: {'returncode': -2}
+[11.266106] (smip_uav) JobEnded: {'identifier': 'smip_uav', 'rc': 'SIGINT'}
+[11.271635] (-) TimerEvent: {}
+[11.276707] (-) EventReactorShutdown: {}

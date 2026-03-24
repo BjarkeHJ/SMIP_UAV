@@ -1,0 +1,26 @@
+[0.013s] Invoking command in '/home/airlab/SMIP_UAV/build/smip_uav': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --build /home/airlab/SMIP_UAV/build/smip_uav -- -j8 -l8
+[0.059s] [35m[1mConsolidate compiler generated dependencies of target smip_uav_node[0m
+[0.082s] [ 25%] [32mBuilding CXX object CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.o[0m
+[14.181s] [ 50%] [32m[1mLinking CXX executable smip_uav_node[0m
+[14.339s] [100%] Built target smip_uav_node
+[14.350s] Invoked command in '/home/airlab/SMIP_UAV/build/smip_uav' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --build /home/airlab/SMIP_UAV/build/smip_uav -- -j8 -l8
+[14.359s] Invoking command in '/home/airlab/SMIP_UAV/build/smip_uav': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --install /home/airlab/SMIP_UAV/build/smip_uav
+[14.364s] -- Install configuration: ""
+[14.364s] -- Installing: /home/airlab/SMIP_UAV/install/smip_uav/lib/smip_uav/smip_uav_node
+[14.365s] -- Set runtime path of "/home/airlab/SMIP_UAV/install/smip_uav/lib/smip_uav/smip_uav_node" to ""
+[14.365s] -- Up-to-date: /home/airlab/SMIP_UAV/install/smip_uav/share/ament_index/resource_index/package_run_dependencies/smip_uav
+[14.365s] -- Up-to-date: /home/airlab/SMIP_UAV/install/smip_uav/share/ament_index/resource_index/parent_prefix_path/smip_uav
+[14.365s] -- Up-to-date: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/environment/ament_prefix_path.sh
+[14.365s] -- Up-to-date: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/environment/ament_prefix_path.dsv
+[14.365s] -- Up-to-date: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/environment/path.sh
+[14.365s] -- Up-to-date: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/environment/path.dsv
+[14.366s] -- Up-to-date: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/local_setup.bash
+[14.366s] -- Up-to-date: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/local_setup.sh
+[14.366s] -- Up-to-date: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/local_setup.zsh
+[14.366s] -- Up-to-date: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/local_setup.dsv
+[14.366s] -- Installing: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/package.dsv
+[14.366s] -- Up-to-date: /home/airlab/SMIP_UAV/install/smip_uav/share/ament_index/resource_index/packages/smip_uav
+[14.366s] -- Up-to-date: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/cmake/smip_uavConfig.cmake
+[14.366s] -- Up-to-date: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/cmake/smip_uavConfig-version.cmake
+[14.366s] -- Up-to-date: /home/airlab/SMIP_UAV/install/smip_uav/share/smip_uav/package.xml
+[14.367s] Invoked command in '/home/airlab/SMIP_UAV/build/smip_uav' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --install /home/airlab/SMIP_UAV/build/smip_uav

@@ -7,7 +7,7 @@ SensorDataPreprocess::SensorDataPreprocess(const Config& config) : config_(confi
     // derive projection geometry
     proj_.ds = std::max<size_t>(1, config.ds_factor);
     proj_.W  = (config.tof_res_x + proj_.ds - 1) / proj_.ds;
-    proj_.W  = (config.tof_res_y + proj_.ds - 1) / proj_.ds;
+    proj_.H  = (config.tof_res_y + proj_.ds - 1) / proj_.ds;
 
     const float hfov = config_.hfov_deg * static_cast<float>(M_PI) / 180.0f;
     const float vfov = config_.vfov_deg * static_cast<float>(M_PI) / 180.0f;
@@ -23,8 +23,8 @@ SensorDataPreprocess::SensorDataPreprocess(const Config& config) : config_(confi
     proj_.max_range_sq = config_.max_range * config_.max_range;
 }
 
-std::vector<PointNormal> SensorDataPreprocess::process(const std::vector<PointXYZ>& pts, const GroundPlane* gnd) const {
-    if (pts.empty()) return {};
+Frame SensorDataPreprocess::process(const std::vector<PointXYZ>& pts, const GroundPlane* gnd) const {
+    if (pts.empty()) return Frame(proj_.W, proj_.H);
 
     const size_t n = proj_.W * proj_.H;
     Workspace ws;
@@ -32,12 +32,10 @@ std::vector<PointNormal> SensorDataPreprocess::process(const std::vector<PointXY
  
     grid_downsample(pts, gnd, ws);
     build_range_image(ws);
-    smooth_range_image(ws);
  
-    std::vector<PointNormal> out;
-    out.reserve(n);
-    estimate_normals(ws, out);
-    return out;
+    Frame frame_out(proj_.W, proj_.H);
+    estimate_normals(ws, frame_out);
+    return frame_out;
 }
 
 void SensorDataPreprocess::grid_downsample(const std::vector<PointXYZ>& pts, const GroundPlane* gnd, Workspace& ws) const {
@@ -69,8 +67,8 @@ void SensorDataPreprocess::grid_downsample(const std::vector<PointXYZ>& pts, con
         if (yaw   < P.yaw_min   || yaw   > P.yaw_max)   continue;
         if (pitch < P.pitch_min || pitch > P.pitch_max) continue;
  
-        const auto u = static_cast<size_t>((yaw   - P.yaw_min)   * P.yaw_scale   / P.ds + 0.5f);
-        const auto v = static_cast<size_t>((pitch - P.pitch_min) * P.pitch_scale / P.ds + 0.5f);
+        const auto u = P.W - 1 - static_cast<size_t>((yaw   - P.yaw_min)   * P.yaw_scale   / P.ds + 0.5f);
+        const auto v = P.H - 1 - static_cast<size_t>((pitch - P.pitch_min) * P.pitch_scale / P.ds + 0.5f);
  
         if (u >= P.W || v >= P.H) continue;
  
@@ -92,83 +90,9 @@ void SensorDataPreprocess::build_range_image(Workspace& ws) const {
     }
 }
 
-void SensorDataPreprocess::smooth_range_image(Workspace& ws) const {
-    if (config_.smooth_iters <= 0) return;
- 
-    ws.range_img_smooth = ws.range_img;
- 
-    const size_t R = std::max<size_t>(1, config_.normal_est_px_radius);
-    const float inv_2s_sp = 1.0f / (2.0f * config_.spatial_sigma_px  * config_.spatial_sigma_px);
-    const float inv_2s_dp = 1.0f / (2.0f * config_.depth_sigma_m     * config_.depth_sigma_m);
-    const float max_jump  = config_.max_depth_jump_m;
-    const auto& P = proj_;
- 
-    // precompute spatial kernel
-    const size_t ksize = 2 * R + 1;
-    std::vector<float> sp_kernel(ksize);
-    for (size_t i = 0; i < ksize; ++i) {
-        const float d = static_cast<float>(i) - static_cast<float>(R);
-        sp_kernel[i] = std::exp(-d * d * inv_2s_sp);
-    }
- 
-    // one bilateral pass (horizontal then vertical)
-    auto bilateral_1d = [&](std::vector<float>& src, std::vector<float>& dst,
-                            bool horizontal)
-    {
-        for (size_t v = 0; v < P.H; ++v) {
-            for (size_t u = 0; u < P.W; ++u) {
-                const size_t ic = P.idx(u, v);
-                const float  rc = src[ic];
- 
-                if (!std::isfinite(rc)) { dst[ic] = rc; continue; }
- 
-                float wsum = 0.0f, vsum = 0.0f;
- 
-                // scan along the chosen axis
-                const size_t axis_pos = horizontal ? u : v;
-                const size_t axis_len = horizontal ? P.W : P.H;
-                const size_t lo = (axis_pos > R) ? axis_pos - R : 0;
-                const size_t hi = std::min(axis_len - 1, axis_pos + R);
- 
-                for (size_t k = lo; k <= hi; ++k) {
-                    const size_t in = horizontal ? P.idx(k, v) : P.idx(u, k);
-                    const float  rn = src[in];
-                    if (!std::isfinite(rn)) continue;
- 
-                    const float dr = rn - rc;
-                    if (std::fabs(dr) > max_jump) continue;
- 
-                    const float w = sp_kernel[k - axis_pos + R]
-                                  * std::exp(-dr * dr * inv_2s_dp);
-                    wsum += w;
-                    vsum += w * rn;
-                }
- 
-                dst[ic] = (wsum > 1e-6f) ? (vsum / wsum) : rc;
-            }
-        }
-    };
- 
-    std::vector<float>* src = &ws.range_img_smooth;
-    std::vector<float>* dst = &ws.temp;
- 
-    for (size_t iter = 0; iter < config_.smooth_iters; ++iter) {
-        bilateral_1d(*src, *dst, /*horizontal=*/true);
-        std::swap(src, dst);
-        bilateral_1d(*src, *dst, /*horizontal=*/false);
-        std::swap(src, dst);
-    }
- 
-    if (src != &ws.range_img_smooth)
-        ws.range_img_smooth = *src;
-}
-
-void SensorDataPreprocess::estimate_normals(const Workspace& ws, std::vector<PointNormal>& out) const {
-    const auto& P = proj_;
-    const float jump_thresh = config_.max_depth_jump_m;
- 
-    const std::vector<float>& range =
-        (config_.smooth_iters > 0) ? ws.range_img_smooth : ws.range_img;
+void SensorDataPreprocess::estimate_normals(const Workspace& ws, Frame& frame_out) const {
+    const auto& P = proj_; 
+    const std::vector<float>& range = ws.range_img;
  
     // fetch a valid neighbour or nullopt
     auto neighbour = [&](size_t u, size_t v, int du, int dv) -> std::pair<bool, Eigen::Vector3f> {
@@ -179,7 +103,7 @@ void SensorDataPreprocess::estimate_normals(const Workspace& ws, std::vector<Poi
         if (!ws.grid[in].valid) return {false, {}};
  
         const float rn = range[in];
-        if (!std::isfinite(rn) || std::fabs(rn - range[P.idx(u, v)]) > jump_thresh)
+        if (!std::isfinite(rn) || std::fabs(rn - range[P.idx(u, v)]) > config_.jump_thresh)
             return {false, {}};
  
         return {true, ws.grid[in].point};
@@ -239,7 +163,7 @@ void SensorDataPreprocess::estimate_normals(const Workspace& ws, std::vector<Poi
             pn.ny = normal.y();
             pn.nz = normal.z();
             pn.w = w_range * w_incidence * w_quality;
-            out.push_back(pn);
+            frame_out(u, v) = pn;
         }
     }
 }

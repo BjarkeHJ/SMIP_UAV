@@ -18,23 +18,24 @@ find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 
-set(
-    DEPS
-    rclcpp
-    tf2_ros
-    tf2_eigen
-)
-
 include_directories(
     include/smip_uav
     ${EIGEN3_INCLUDE_DIRS}
 )
 
+set(
+    DEPS
+    rclcpp
+    sensor_msgs
+    tf2_ros
+    tf2_eigen
+)
+
 add_executable(
     ${SMIP_EXEC}
     src/smip_exec.cpp
-    src/sensor_data_preprocess.cpp
-    src/surfel_map.cpp
+    src/ros_nodes/map_node.cpp
+    src/surfel_map/sensor_data_preprocess.cpp
 )
 
 ament_target_dependencies(
@@ -44,7 +45,7 @@ ament_target_dependencies(
 
 target_link_libraries(
     ${SMIP_EXEC}
-    Eigen3::eigen
+    Eigen3::Eigen
 )
 
 install(

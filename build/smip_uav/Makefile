@@ -210,6 +210,30 @@ smip_uav_node/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/smip_uav_node.dir/build.make CMakeFiles/smip_uav_node.dir/build
 .PHONY : smip_uav_node/fast
 
+src/ros_nodes/map_node.o: src/ros_nodes/map_node.cpp.o
+.PHONY : src/ros_nodes/map_node.o
+
+# target to build an object file
+src/ros_nodes/map_node.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/smip_uav_node.dir/build.make CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.o
+.PHONY : src/ros_nodes/map_node.cpp.o
+
+src/ros_nodes/map_node.i: src/ros_nodes/map_node.cpp.i
+.PHONY : src/ros_nodes/map_node.i
+
+# target to preprocess a source file
+src/ros_nodes/map_node.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/smip_uav_node.dir/build.make CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.i
+.PHONY : src/ros_nodes/map_node.cpp.i
+
+src/ros_nodes/map_node.s: src/ros_nodes/map_node.cpp.s
+.PHONY : src/ros_nodes/map_node.s
+
+# target to generate assembly for a file
+src/ros_nodes/map_node.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/smip_uav_node.dir/build.make CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.s
+.PHONY : src/ros_nodes/map_node.cpp.s
+
 src/smip_exec.o: src/smip_exec.cpp.o
 .PHONY : src/smip_exec.o
 
@@ -234,6 +258,30 @@ src/smip_exec.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/smip_uav_node.dir/build.make CMakeFiles/smip_uav_node.dir/src/smip_exec.cpp.s
 .PHONY : src/smip_exec.cpp.s
 
+src/surfel_map/sensor_data_preprocess.o: src/surfel_map/sensor_data_preprocess.cpp.o
+.PHONY : src/surfel_map/sensor_data_preprocess.o
+
+# target to build an object file
+src/surfel_map/sensor_data_preprocess.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/smip_uav_node.dir/build.make CMakeFiles/smip_uav_node.dir/src/surfel_map/sensor_data_preprocess.cpp.o
+.PHONY : src/surfel_map/sensor_data_preprocess.cpp.o
+
+src/surfel_map/sensor_data_preprocess.i: src/surfel_map/sensor_data_preprocess.cpp.i
+.PHONY : src/surfel_map/sensor_data_preprocess.i
+
+# target to preprocess a source file
+src/surfel_map/sensor_data_preprocess.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/smip_uav_node.dir/build.make CMakeFiles/smip_uav_node.dir/src/surfel_map/sensor_data_preprocess.cpp.i
+.PHONY : src/surfel_map/sensor_data_preprocess.cpp.i
+
+src/surfel_map/sensor_data_preprocess.s: src/surfel_map/sensor_data_preprocess.cpp.s
+.PHONY : src/surfel_map/sensor_data_preprocess.s
+
+# target to generate assembly for a file
+src/surfel_map/sensor_data_preprocess.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/smip_uav_node.dir/build.make CMakeFiles/smip_uav_node.dir/src/surfel_map/sensor_data_preprocess.cpp.s
+.PHONY : src/surfel_map/sensor_data_preprocess.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -250,9 +298,15 @@ help:
 	@echo "... smip_uav_uninstall"
 	@echo "... uninstall"
 	@echo "... smip_uav_node"
+	@echo "... src/ros_nodes/map_node.o"
+	@echo "... src/ros_nodes/map_node.i"
+	@echo "... src/ros_nodes/map_node.s"
 	@echo "... src/smip_exec.o"
 	@echo "... src/smip_exec.i"
 	@echo "... src/smip_exec.s"
+	@echo "... src/surfel_map/sensor_data_preprocess.o"
+	@echo "... src/surfel_map/sensor_data_preprocess.i"
+	@echo "... src/surfel_map/sensor_data_preprocess.s"
 .PHONY : help
 
 
