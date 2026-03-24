@@ -1,9 +1,0 @@
-[35m[1mConsolidate compiler generated dependencies of target smip_uav_node[0m
-[ 75%] [32mBuilding CXX object CMakeFiles/smip_uav_node.dir/src/smip_exec.cpp.o[0m
-[ 75%] [32mBuilding CXX object CMakeFiles/smip_uav_node.dir/src/surfel_map/sensor_data_preprocess.cpp.o[0m
-[ 75%] [32mBuilding CXX object CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.o[0m
-gmake[2]: *** [CMakeFiles/smip_uav_node.dir/build.make:90: CMakeFiles/smip_uav_node.dir/src/ros_nodes/map_node.cpp.o] Interrupt
-gmake[1]: *** [CMakeFiles/Makefile2:137: CMakeFiles/smip_uav_node.dir/all] Interrupt
-gmake: *** wait: No child processes.  Stop.
-gmake: *** Waiting for unfinished jobs....
-gmake: *** wait: No child processes.  Stop.

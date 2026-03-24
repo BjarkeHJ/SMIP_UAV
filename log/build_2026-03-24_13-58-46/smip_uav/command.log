@@ -1,6 +1,0 @@
-Invoking command in '/home/airlab/SMIP_UAV/build/smip_uav': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake /home/airlab/SMIP_UAV/smip_uav -DCMAKE_INSTALL_PREFIX=/home/airlab/SMIP_UAV/install/smip_uav
-Invoked command in '/home/airlab/SMIP_UAV/build/smip_uav' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake /home/airlab/SMIP_UAV/smip_uav -DCMAKE_INSTALL_PREFIX=/home/airlab/SMIP_UAV/install/smip_uav
-Invoking command in '/home/airlab/SMIP_UAV/build/smip_uav': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --build /home/airlab/SMIP_UAV/build/smip_uav -- -j8 -l8
-Invoked command in '/home/airlab/SMIP_UAV/build/smip_uav' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --build /home/airlab/SMIP_UAV/build/smip_uav -- -j8 -l8
-Invoking command in '/home/airlab/SMIP_UAV/build/smip_uav': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --install /home/airlab/SMIP_UAV/build/smip_uav
-Invoked command in '/home/airlab/SMIP_UAV/build/smip_uav' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --install /home/airlab/SMIP_UAV/build/smip_uav
