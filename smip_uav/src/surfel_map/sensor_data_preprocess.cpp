@@ -153,7 +153,8 @@ void SensorDataPreprocess::estimate_normals(const Workspace& ws, Frame& frame_ou
             const float cos_inc     = std::abs(normal.dot(-Pc.normalized()));
             const float w_incidence = std::pow(cos_inc, 0.5f);
  
-            const float un = tu.norm(), vn = tv.norm();
+            const float un = tu.norm();
+            const float vn = tv.norm();
             const float q_anis      = 2.0f * std::min(un, vn) / (un + vn + 1e-6f);
             const float sin_theta   = nn / (un * vn);
             const float w_quality   = sin_theta * q_anis;

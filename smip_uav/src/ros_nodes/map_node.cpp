@@ -10,6 +10,7 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
     viz_ = std::make_unique<Visualizer>(this, "/smip");
     depth_ch_ = viz_channels::frame_depth(*viz_, tof_frame_, "tof_depth", rclcpp::SensorDataQoS(), 0.1f, 10.0f); // TODO: ranges from sensor config
     normal_ch_ = viz_channels::frame_normal(*viz_, tof_frame_, "tof_normal", rclcpp::SensorDataQoS());
+    weight_ch_ = viz_channels::frame_weight(*viz_, tof_frame_, "tof_weight", rclcpp::SensorDataQoS());
 
     // Preprocessing
     preproc_ = std::make_unique<SensorDataPreprocess>(SensorDataPreprocess::Config{});
@@ -80,6 +81,7 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     // Publish visualization
     depth_ch_.publish(current_frame_, this->get_clock()->now());
     normal_ch_.publish(current_frame_, this->get_clock()->now());
+    weight_ch_.publish(current_frame_, this->get_clock()->now());
 }
 
 

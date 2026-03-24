@@ -33,7 +33,6 @@ inline sensor_msgs::msg::Image depth_mono8(
     const float inv_range = 255.0f / (max_range - min_range);
     for (size_t i = 0; i < buf.size(); ++i) {
         float clamped = std::clamp(buf[i], min_range, max_range);
-        // m.data[i] = static_cast<uint8_t>((max_range - clamped) * inv_range);
         m.data[i] = static_cast<uint8_t>((clamped - min_range) * inv_range);
     }
     return m;
@@ -62,6 +61,29 @@ inline sensor_msgs::msg::Image normal_rgb8(
     }
     return m;
 }
+
+inline sensor_msgs::msg::Image weight_mono8(
+        const std::vector<float>& buf,
+        uint32_t w, uint32_t h,
+        const rclcpp::Time& stamp,
+        const std::string& frame_id) {
+    
+    sensor_msgs::msg::Image m;
+    m.header.stamp = stamp;
+    m.header.frame_id = frame_id;
+    m.height = h;
+    m.width = w;
+    m.encoding = "mono8";
+    m.is_bigendian = false;
+    m.step = w;
+    m.data.resize(w * h, 0);
+
+    for (size_t i = 0; i < w * h; ++i) {
+        m.data[i] = static_cast<uint8_t>(buf[i] * 255.0f);
+    }
+    return m;
+}
+
 } // viz_convs
 
 
@@ -92,12 +114,29 @@ inline VizChannel<Frame, sensor_msgs::msg::Image> frame_normal(
         Visualizer& viz,
         const std::string& frame_id,
         const std::string& subtopic,
-        rclcpp::QoS qos = rclcpp::SensorDataQoS()
+        rclcpp::QoS qos
     ) {
     return viz.create<Frame, sensor_msgs::msg::Image>(subtopic, frame_id, qos,
         [](const Frame& f, const rclcpp::Time& stamp, const std::string& fid) {
             return viz_convs::normal_rgb8(
                 f.normal_image(),
+                static_cast<uint32_t>(f.W),
+                static_cast<uint32_t>(f.H),
+                stamp,
+                fid);
+        });
+}
+
+inline VizChannel<Frame, sensor_msgs::msg::Image> frame_weight(
+        Visualizer& viz,
+        const std::string& frame_id,
+        const std::string& subtopic,
+        rclcpp::QoS qos
+    ) {
+    return viz.create<Frame, sensor_msgs::msg::Image>(subtopic, frame_id, qos,
+        [](const Frame& f, const rclcpp::Time& stamp, const std::string& fid) {
+            return viz_convs::weight_mono8(
+                f.weight_image(),
                 static_cast<uint32_t>(f.W),
                 static_cast<uint32_t>(f.H),
                 stamp,

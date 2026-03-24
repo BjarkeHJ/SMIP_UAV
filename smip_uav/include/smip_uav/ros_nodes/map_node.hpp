@@ -51,6 +51,7 @@ private:
     std::unique_ptr<Visualizer> viz_;
     VizChannel<Frame, sensor_msgs::msg::Image> depth_ch_;
     VizChannel<Frame, sensor_msgs::msg::Image> normal_ch_;
+    VizChannel<Frame, sensor_msgs::msg::Image> weight_ch_;
 
     // Timing
     StopWatch clock_;
