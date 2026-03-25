@@ -31,10 +31,10 @@ public:
         float max_range{10.0f};
         
         // Preprocessing
-        bool enable_ground_filter{true};
+        bool enable_ground_filter{false};
         float ground_z_min{0.15f};
         int ds_factor{1};
-        int normal_est_px_radius{3};
+        int normal_est_px_radius{5};
         float jump_thresh{0.15};
     };
 
@@ -48,7 +48,7 @@ public:
 private:
     // projection geometry (immutable after construction)
     struct Projection {
-        size_t W, H, ds; 
+        size_t W, H, ds;
         float yaw_min, yaw_max;
         float pitch_min, pitch_max;
         float yaw_scale, pitch_scale;

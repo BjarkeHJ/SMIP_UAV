@@ -46,7 +46,9 @@ void SensorDataPreprocess::grid_downsample(const std::vector<PointXYZ>& pts, con
  
     const auto& P = proj_;
  
-    for (const auto& p : pts) {
+    // for (const auto& p : pts) {
+    for (size_t i = 0; i < pts.size(); ++i) {
+        const auto& p = pts[i];
         if (!std::isfinite(p.px) || !std::isfinite(p.py) || !std::isfinite(p.pz))
             continue;
  
@@ -64,22 +66,26 @@ void SensorDataPreprocess::grid_downsample(const std::vector<PointXYZ>& pts, con
         // reject points behind the camera
         if (pv.x() <= 0.0f) continue;
 
-        const float yaw   = std::atan2(pv.y(), pv.x());
-        const float pitch = std::atan2(pv.z(), std::hypot(pv.x(), pv.y()));
+        // const float yaw = std::atan2(pv.y(), pv.x());
+        // const float pitch = std::atan2(pv.z(), std::hypot(pv.x(), pv.y()));
  
-        if (yaw   < P.yaw_min   || yaw   > P.yaw_max)   continue;
-        if (pitch < P.pitch_min || pitch > P.pitch_max) continue;
+        // if (yaw < P.yaw_min || yaw > P.yaw_max) continue;
+        // if (pitch < P.pitch_min || pitch > P.pitch_max) continue;
  
-        const auto u = P.W - 1 - static_cast<size_t>((yaw   - P.yaw_min)   * P.yaw_scale   / P.ds + 0.5f);
-        const auto v = P.H - 1 - static_cast<size_t>((pitch - P.pitch_min) * P.pitch_scale / P.ds + 0.5f);
- 
+        // const auto u = P.W - 1 - static_cast<size_t>((yaw   - P.yaw_min)   * P.yaw_scale   / P.ds + 0.5f);
+        // const auto v = P.H - 1 - static_cast<size_t>((pitch - P.pitch_min) * P.pitch_scale / P.ds + 0.5f);
+        
+        // pixel coords from array index, then downsample
+        const size_t u = P.W - 1 - (i % config_.tof_res_x) / P.ds;
+        const size_t v = P.H - 1 - (i / config_.tof_res_x) / P.ds;
+        
         if (u >= P.W || v >= P.H) continue;
  
         GridCell& cell = ws.grid[P.idx(u, v)];
         if (r_sq < cell.range_sq) {
-            cell.point    = pv;
+            cell.point = pv;
             cell.range_sq = r_sq;
-            cell.valid    = true;
+            cell.valid = true;
         }
     }
 }
