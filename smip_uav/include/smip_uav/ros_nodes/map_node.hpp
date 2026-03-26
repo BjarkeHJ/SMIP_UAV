@@ -55,6 +55,8 @@ private:
 
     // Timing
     StopWatch clock_;
+
+    bool is_sim{true};
 };
 
 } // smip_uav

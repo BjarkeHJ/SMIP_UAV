@@ -23,18 +23,16 @@ class SensorDataPreprocess {
 public:
     struct Config {
         // Sensor specs
-        size_t tof_res_x{240};
-        size_t tof_res_y{180};
-        float hfov_deg{106.0f};
-        float vfov_deg{86.0f};
+        size_t tof_res_x{180};
+        size_t tof_res_y{240};
         float min_range{0.1f};
         float max_range{10.0f};
         
         // Preprocessing
+        bool transpose_input{true}; // True: Real Sensor data, False: Gz Sim data (message layout order is reversed also)
         bool enable_ground_filter{false};
-        float ground_z_min{0.15f};
+        float ground_z_min{0.05f};
         int ds_factor{1};
-        int normal_est_px_radius{5};
         float jump_thresh{0.15};
     };
 

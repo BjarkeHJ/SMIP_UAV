@@ -1,7 +1,7 @@
 #ifndef SURFEL_MAP_HPP_
 #define SURFEL_MAP_HPP_
 
-#include "surfel_map/voxel_index.hpp"
+#include "surfel_map/voxel_grid.hpp"
 
 namespace smip_uav {
 

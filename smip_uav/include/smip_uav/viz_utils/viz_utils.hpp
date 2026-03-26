@@ -29,11 +29,25 @@ inline sensor_msgs::msg::Image depth_mono8(
     m.is_bigendian = false;
     m.step = w;
     m.data.resize(w * h, 0);
+    
+    float min_d = std::numeric_limits<float>::max();
+    float max_d = std::numeric_limits<float>::lowest();
 
-    const float inv_range = 255.0f / (max_range - min_range);
+    for (float v : buf) {
+        if (!std::isfinite(v)) continue;
+        min_d = std::min(min_d, v);
+        max_d = std::max(max_d, v);
+    }
+
+    float range = max_d - min_d;
+    if (range < 1e-6f) range = 1.0f;
+
+    const float inv_range = 255.0f / range;
+
     for (size_t i = 0; i < buf.size(); ++i) {
-        float clamped = std::clamp(buf[i], min_range, max_range);
-        m.data[i] = static_cast<uint8_t>((clamped - min_range) * inv_range);
+        float v = std::isfinite(buf[i]) ? buf[i] : min_d;
+        float norm = (v - min_d) * inv_range;
+        m.data[i] = static_cast<uint8_t>(std::clamp(norm, 0.0f, 255.0f));
     }
     return m;
 }

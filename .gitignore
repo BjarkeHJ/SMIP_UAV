@@ -30,3 +30,6 @@ venv/
 # System files
 .DS_Store
 Thumbs.db
+
+# Data folder
+data/

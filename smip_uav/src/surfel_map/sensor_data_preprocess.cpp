@@ -8,17 +8,6 @@ SensorDataPreprocess::SensorDataPreprocess(const Config& config) : config_(confi
     proj_.ds = std::max<size_t>(1, config.ds_factor);
     proj_.W  = (config.tof_res_x + proj_.ds - 1) / proj_.ds;
     proj_.H  = (config.tof_res_y + proj_.ds - 1) / proj_.ds;
-
-    const float hfov = config_.hfov_deg * static_cast<float>(M_PI) / 180.0f;
-    const float vfov = config_.vfov_deg * static_cast<float>(M_PI) / 180.0f;
-
-    proj_.yaw_min = -hfov * 0.5f;
-    proj_.yaw_max =  hfov * 0.5f;
-    proj_.pitch_min = -vfov * 0.5f;
-    proj_.pitch_max =  vfov * 0.5f;
-    proj_.yaw_scale = (config_.tof_res_x  - 1) / hfov;
-    proj_.pitch_scale = (config_.tof_res_y - 1) / vfov;
-
     proj_.min_range_sq = config_.min_range * config_.min_range;
     proj_.max_range_sq = config_.max_range * config_.max_range;
 }
@@ -65,20 +54,17 @@ void SensorDataPreprocess::grid_downsample(const std::vector<PointXYZ>& pts, con
  
         // reject points behind the camera
         if (pv.x() <= 0.0f) continue;
-
-        // const float yaw = std::atan2(pv.y(), pv.x());
-        // const float pitch = std::atan2(pv.z(), std::hypot(pv.x(), pv.y()));
- 
-        // if (yaw < P.yaw_min || yaw > P.yaw_max) continue;
-        // if (pitch < P.pitch_min || pitch > P.pitch_max) continue;
- 
-        // const auto u = P.W - 1 - static_cast<size_t>((yaw   - P.yaw_min)   * P.yaw_scale   / P.ds + 0.5f);
-        // const auto v = P.H - 1 - static_cast<size_t>((pitch - P.pitch_min) * P.pitch_scale / P.ds + 0.5f);
         
-        // pixel coords from array index, then downsample
-        const size_t u = P.W - 1 - (i % config_.tof_res_x) / P.ds;
-        const size_t v = P.H - 1 - (i / config_.tof_res_x) / P.ds;
-        
+        // pixel coords from array index
+        size_t u, v;
+        if (config_.transpose_input) {
+            u = (i / config_.tof_res_y) / P.ds;
+            v = (i % config_.tof_res_y) / P.ds;
+        } else {
+            u = P.W - 1 - (i % config_.tof_res_x) / P.ds;
+            v = P.H - 1 - (i / config_.tof_res_x) / P.ds;
+        }
+                
         if (u >= P.W || v >= P.H) continue;
  
         GridCell& cell = ws.grid[P.idx(u, v)];
@@ -153,17 +139,17 @@ void SensorDataPreprocess::estimate_normals(const Workspace& ws, Frame& frame_ou
                 normal = -normal;
  
             // weighting
-            const float r   = Pc.norm();
-            const float w_range     = 1.0f / (1.0f + alpha * r * r);
+            const float r = Pc.norm();
+            const float w_range = 1.0f / (1.0f + alpha * r * r);
  
-            const float cos_inc     = std::abs(normal.dot(-Pc.normalized()));
+            const float cos_inc = std::abs(normal.dot(-Pc.normalized()));
             const float w_incidence = std::pow(cos_inc, 0.5f);
  
             const float un = tu.norm();
             const float vn = tv.norm();
-            const float q_anis      = 2.0f * std::min(un, vn) / (un + vn + 1e-6f);
-            const float sin_theta   = nn / (un * vn);
-            const float w_quality   = sin_theta * q_anis;
+            const float q_anis = 2.0f * std::min(un, vn) / (un + vn + 1e-6f);
+            const float sin_theta = nn / (un * vn);
+            const float w_quality = sin_theta * q_anis;
  
             PointNormal pn;
             pn.px = Pc.x();
@@ -173,6 +159,7 @@ void SensorDataPreprocess::estimate_normals(const Workspace& ws, Frame& frame_ou
             pn.ny = normal.y();
             pn.nz = normal.z();
             pn.w = w_range * w_incidence * w_quality;
+
             frame_out(u, v) = pn;
         }
     }

@@ -36,10 +36,12 @@ void SurfelMapNode::declare_parameters() {
     this->declare_parameter("sensor_tof_frame", "lidar_frame");
     // this->declare_parameter("pointcloud_topic", "/x500/lidar_front/points_raw");
     this->declare_parameter("pointcloud_topic", "/tof_pc");
+    this->declare_parameter("simulation", true);
 
     global_frame_ = this->get_parameter("global_frame").as_string();
     tof_frame_ = this->get_parameter("sensor_tof_frame").as_string();
     pointcloud_topic_ = this->get_parameter("pointcloud_topic").as_string();
+    is_sim = this->get_parameter("simulation").as_bool();
 }
 
 bool SurfelMapNode::get_transform(const rclcpp::Time& ts) {
@@ -70,8 +72,13 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     sensor_msgs::PointCloud2ConstIterator<float> iter_y(*cloud_msg, "y");
     sensor_msgs::PointCloud2ConstIterator<float> iter_z(*cloud_msg, "z");
     for (; iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z) {
-        // pts_.push_back({*iter_x, *iter_y, *iter_z});
-        pts_.push_back({*iter_z, -*iter_x, -*iter_y});
+        if (is_sim) {
+            pts_.push_back({*iter_x, *iter_y, *iter_z});
+        }
+        else {
+            // transform incoming points from optical frame to FLU (x = z_opt, y = -x_opt, z = -y_opt)
+            pts_.push_back({*iter_z, -*iter_x, -*iter_y});
+        }
     }
 
     // run preprocess
