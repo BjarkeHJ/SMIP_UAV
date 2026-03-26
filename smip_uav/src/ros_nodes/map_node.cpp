@@ -8,7 +8,7 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
 
     // Visualizer
     viz_ = std::make_unique<Visualizer>(this, "/smip");
-    depth_ch_ = viz_channels::frame_depth(*viz_, tof_frame_, "tof_depth", rclcpp::SensorDataQoS(), 0.1f, 10.0f); // TODO: ranges from sensor config
+    depth_ch_ = viz_channels::frame_depth(*viz_, tof_frame_, "tof_depth", rclcpp::SensorDataQoS()); // TODO: ranges from sensor config
     normal_ch_ = viz_channels::frame_normal(*viz_, tof_frame_, "tof_normal", rclcpp::SensorDataQoS());
     weight_ch_ = viz_channels::frame_weight(*viz_, tof_frame_, "tof_weight", rclcpp::SensorDataQoS());
 
@@ -30,12 +30,12 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
 
     RCLCPP_INFO(this->get_logger(), "SurfelMap node initialized");
 }
-
+    
 void SurfelMapNode::declare_parameters() {
     this->declare_parameter("global_frame", "odom");
     this->declare_parameter("sensor_tof_frame", "lidar_frame");
-    // this->declare_parameter("pointcloud_topic", "/x500/lidar_front/points_raw");
-    this->declare_parameter("pointcloud_topic", "/tof_pc");
+    this->declare_parameter("pointcloud_topic", "/x500/lidar_front/points_raw");
+    // this->declare_parameter("pointcloud_topic", "/tof_pc");
     this->declare_parameter("simulation", true);
 
     global_frame_ = this->get_parameter("global_frame").as_string();
@@ -65,6 +65,9 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
         );
         // return;
     }
+    
+    rclcpp::Time t_msg = cloud_msg->header.stamp;
+    uint64_t timestamp_ns = static_cast<uint64_t>(t_msg.nanoseconds());
 
     // extract point data
     pts_.clear();
@@ -85,7 +88,7 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     GroundPlane gnd;
     gnd.normal_z = tf_.rotation().transpose() * Eigen::Vector3f::UnitZ();
     gnd.offset_z = -gnd.normal_z.dot(tf_.inverse().translation());
-    current_frame_ = preproc_->process(pts_, &gnd);
+    current_frame_ = preproc_->process(pts_, timestamp_ns, &gnd);
 
     // Publish visualization
     depth_ch_.publish(current_frame_, this->get_clock()->now());

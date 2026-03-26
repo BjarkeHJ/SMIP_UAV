@@ -29,7 +29,7 @@ public:
         float max_range{10.0f};
         
         // Preprocessing
-        bool transpose_input{true}; // True: Real Sensor data, False: Gz Sim data (message layout order is reversed also)
+        bool transpose_input{false}; // True: Real Sensor data, False: Gz Sim data (message layout order is reversed also)
         bool enable_ground_filter{false};
         float ground_z_min{0.05f};
         int ds_factor{1};
@@ -41,7 +41,7 @@ public:
 
     // Process the input pts (with optional ground plane filter)
     // return Frame datatype containing point, normal, weight information and can construct 2D images as well (depth, normal, weight)
-    Frame process(const std::vector<PointXYZ>& pts, const GroundPlane* gnd = nullptr) const;
+    Frame process(const std::vector<PointXYZ>& pts, const uint64_t ts_ns, const GroundPlane* gnd = nullptr) const;
 
 private:
     // projection geometry (immutable after construction)

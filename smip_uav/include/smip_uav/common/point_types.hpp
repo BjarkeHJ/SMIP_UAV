@@ -22,7 +22,11 @@ struct Frame {
     std::vector<PointNormal> pixels; // size = H * W, row-major
 
     Frame() = default;
-    Frame(size_t w, size_t h) : W(w), H(h), pixels(w * h, invalid_pixel()) {} // initialize frame with size and invalid entries
+    Frame(const size_t w, const size_t h, const uint64_t ts_ns) : W(w), H(h), ts_ns_(ts_ns), pixels(w * h, invalid_pixel()) {} // initialize frame with size stamp, and invalid entries
+
+    uint64_t ts_ns_{0}; // Timestamp for sensor data (For synch.)
+    
+    // MAYBE TODO: Include capture pose in frame
 
     size_t idx(size_t u, size_t v) const { return v * W + u; }
     PointNormal& operator()(size_t u, size_t v) { return pixels[idx(u, v)]; }

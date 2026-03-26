@@ -12,8 +12,8 @@ SensorDataPreprocess::SensorDataPreprocess(const Config& config) : config_(confi
     proj_.max_range_sq = config_.max_range * config_.max_range;
 }
 
-Frame SensorDataPreprocess::process(const std::vector<PointXYZ>& pts, const GroundPlane* gnd) const {
-    if (pts.empty()) return Frame(proj_.W, proj_.H);
+Frame SensorDataPreprocess::process(const std::vector<PointXYZ>& pts, const uint64_t ts_ns, const GroundPlane* gnd) const {
+    if (pts.empty()) return Frame(proj_.W, proj_.H, 0);
 
     const size_t n = proj_.W * proj_.H;
     Workspace ws;
@@ -22,7 +22,7 @@ Frame SensorDataPreprocess::process(const std::vector<PointXYZ>& pts, const Grou
     grid_downsample(pts, gnd, ws);
     build_range_image(ws);
  
-    Frame frame_out(proj_.W, proj_.H);
+    Frame frame_out(proj_.W, proj_.H, ts_ns);
     estimate_normals(ws, frame_out);
     return frame_out;
 }

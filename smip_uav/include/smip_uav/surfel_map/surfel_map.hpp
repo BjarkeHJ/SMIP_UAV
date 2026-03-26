@@ -22,6 +22,9 @@ private:
     SurfelMapConfig config_;
 
 
+    uint64_t ts_create_;
+    uint64_t ts_update_;
+
 };
 
 

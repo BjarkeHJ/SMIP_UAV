@@ -16,7 +16,6 @@ namespace viz_convs {
 inline sensor_msgs::msg::Image depth_mono8(
         const std::vector<float>& buf,
         uint32_t w, uint32_t h,
-        float min_range, float max_range,
         const rclcpp::Time& stamp,
         const std::string& frame_id) {
 
@@ -108,17 +107,14 @@ inline VizChannel<Frame, sensor_msgs::msg::Image> frame_depth(
         Visualizer& viz, 
         const std::string& frame_id, 
         const std::string& subtopic,
-        rclcpp::QoS qos,
-        float min_range, float max_range
+        rclcpp::QoS qos
     ) {
     return viz.create<Frame, sensor_msgs::msg::Image>(subtopic, frame_id, qos,
-        [min_range, max_range](const Frame& f, const rclcpp::Time& stamp, const std::string& fid) {
+        [](const Frame& f, const rclcpp::Time& stamp, const std::string& fid) {
             return viz_convs::depth_mono8(
                 f.depth_image(),
                 static_cast<uint32_t>(f.W),
                 static_cast<uint32_t>(f.H),
-                min_range,
-                max_range,
                 stamp,
                 fid);
         });
