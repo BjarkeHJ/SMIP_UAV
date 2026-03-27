@@ -15,6 +15,9 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
     // Preprocessing
     preproc_ = std::make_unique<SensorDataPreprocess>(SensorDataPreprocess::Config{});
     
+    // SurfelMap
+    smap_ = std::make_unique<SurfelMap>(SurfelMap::Config{});
+
     // ROS2 TF
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_unique<tf2_ros::TransformListener>(*tf_buffer_);
@@ -89,6 +92,22 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     gnd.normal_z = tf_.rotation().transpose() * Eigen::Vector3f::UnitZ();
     gnd.offset_z = -gnd.normal_z.dot(tf_.inverse().translation());
     current_frame_ = preproc_->process(pts_, timestamp_ns, &gnd);
+
+    current_frame_.tf_pose = tf_; // Set transform (maybe change the way this is done...)
+
+    clock_.tic();    
+    smap_->integrate_frame(current_frame_);
+    double tif = clock_.toc();
+    std::cout << "Integrated frame of " << current_frame_.valid_count() << " points in " << tif << " ms." << std::endl;
+
+    size_t wvc = smap_->working_surfel_count();
+    std::cout << "N Surfels: " << wvc << std::endl;
+
+    bool hm = smap_->has_map();
+    if (hm) {
+        const VoxelGrid& psmap = smap_->map();
+        std::cout << "Has public map of size: " << psmap.size() << std::endl;
+    }
 
     // Publish visualization
     depth_ch_.publish(current_frame_, this->get_clock()->now());

@@ -16,6 +16,7 @@ find_package(tf2_ros REQUIRED)
 find_package(tf2_eigen REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 
 include_directories(
@@ -26,9 +27,11 @@ include_directories(
 set(
     DEPS
     rclcpp
-    sensor_msgs
     tf2_ros
     tf2_eigen
+    sensor_msgs
+    geometry_msgs
+    visualization_msgs
 )
 
 add_executable(
@@ -36,6 +39,9 @@ add_executable(
     src/smip_exec.cpp
     src/ros_nodes/map_node.cpp
     src/surfel_map/sensor_data_preprocess.cpp
+    src/surfel_map/voxel_grid.cpp
+    src/surfel_map/surfel.cpp
+    src/surfel_map/surfel_map.cpp
 )
 
 ament_target_dependencies(

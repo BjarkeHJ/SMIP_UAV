@@ -6,6 +6,7 @@
 // ==== INCLUDE SUPPORTED MESSAGE TYPES ====
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 
 // ==== INCLUDE SUPPORTED DATA TYPES (Custom) ====
 #include "common/point_types.hpp"
@@ -96,6 +97,7 @@ inline sensor_msgs::msg::Image weight_mono8(
     }
     return m;
 }
+
 
 } // viz_convs
 

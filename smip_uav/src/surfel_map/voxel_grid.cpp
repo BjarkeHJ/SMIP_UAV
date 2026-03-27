@@ -19,7 +19,7 @@ bool Voxel::remove_at(uint8_t idx) {
 }
 
 // VOXELGRID
-VoxelGrid::VoxelGrid(const Config& cfg) : config_(cfg), inv_voxle_size_(1.0f / cfg.voxel_size) {
+VoxelGrid::VoxelGrid(const Config& cfg) : config_(cfg), inv_voxel_size_(1.0f / cfg.voxel_size) {
     assert(cfg.voxel_size > 0.0f && "Voxel size must be positive");
     voxels_.reserve(cfg.initial_bucket_count);
     voxels_.max_load_factor(cfg.max_load_factor);
@@ -27,14 +27,23 @@ VoxelGrid::VoxelGrid(const Config& cfg) : config_(cfg), inv_voxle_size_(1.0f / c
 
 VoxelKey VoxelGrid::to_key(float x, float y, float z) const {
     return {
-        static_cast<int32_t>(std::floor(x * inv_voxle_size_)),
-        static_cast<int32_t>(std::floor(y * inv_voxle_size_)),
-        static_cast<int32_t>(std::floor(z * inv_voxle_size_))
+        static_cast<int32_t>(std::floor(x * inv_voxel_size_)),
+        static_cast<int32_t>(std::floor(y * inv_voxel_size_)),
+        static_cast<int32_t>(std::floor(z * inv_voxel_size_))
     };
 }
 
 VoxelKey VoxelGrid::to_key(const Eigen::Vector3f& p) const {
     return to_key(p.x(), p.y(), p.z());
+}
+
+Eigen::Vector3f VoxelGrid::voxel_center(const VoxelKey& key) const {
+    const float vs = config_.voxel_size;
+    return {
+        (static_cast<float>(key.x) + 0.5f) * vs,
+        (static_cast<float>(key.y) + 0.5f) * vs,
+        (static_cast<float>(key.z) + 0.5f) * vs
+    };
 }
 
 Voxel& VoxelGrid::get_or_create(const VoxelKey& key) {

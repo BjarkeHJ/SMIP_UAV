@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <Eigen/Core>
 #include <Eigen/Geometry>
+#include <Eigen/Eigenvalues>
 
 #include "common/point_types.hpp"
 
@@ -44,51 +45,61 @@ struct VoxelKeyHash {
 
 class Surfel {
 public:
-    struct Config {
-        
-    };
-
-    // Fixed constants (non configurable)
-    static constexpr unsigned int MAX_NUM_SURFELS = 6;
-    static constexpr unsigned int MIN_SURFEL_POINTS = 10;
-    static constexpr unsigned int MAX_SURFEL_POINTS = 10000;
-
     Surfel() = default;
-    explicit Surfel(const Config&);
 
-    void update(const std::vector<PointNormal>& pns);
+    void accumulate(const PointNormal& pn, const Eigen::Vector3f& view_dir, uint64_t timestamp); // Add a single weighted point
+    void merge_from(const Surfel& other); // Absorb existing surfel from same voxel
+    void merge_from_translated(const Surfel& other, const Eigen::Vector3f& delta_c); // Absorb existing surfel from different voxel
+
+    void recompute();
 
     // Accessors
     const Eigen::Vector3f& mean() const { return mean_; }
     const Eigen::Vector3f& normal() const { return normal_; }
     const Eigen::Matrix3f& covariance() const { return covariance_; }
-    const Eigen::Vector3f& eigen_values() const { return eigen_values_; }
-    const Eigen::Matrix3f& eigen_vectors() const { return eigen_vectors_; }
-    double ts_create() const { return ts_create_; }
-    double ts_update() const { return ts_update_ ; }
+    const Eigen::Matrix3f& eigenvectors() const { return eigenvectors_; }
+    const Eigen::Vector3f& eigenvalues() const { return eigenvalues_; }
+
+    Eigen::Vector3f world_mean(float voxel_size) const; // reconstruct world-frame position: voxel_center + mean_
+
+    float planarity() const;
+    float linearity() const;
+    float sphericity() const;
+    float priority(uint64_t now, size_t min_points_mature) const;
+    
     size_t point_count() const { return count_; }
-    bool is_valid() const { return valid_; }
+    float total_weight() const  { return W_; }
+    uint64_t created_at() const { return ts_create_; }
+    uint64_t updated_at() const { return ts_update_ ; }
+    bool needs_recompute() const { return dirty_; }
+    const VoxelKey& voxel_key() const { return key_; }
+
+    bool is_mature(size_t min_points) const { return count_ >= min_points; }
+
+    // Surfel Initialization
+    void seed(const PointNormal& pn, const Eigen::Vector3f& view_dir, const VoxelKey& key, uint64_t timestamp);
 
 private:
-    void compute_eigen_decomp();
-    
+    // Sufficient statistics
+    float W_{0.0f};
+    Eigen::Vector3f S1_{Eigen::Vector3f::Zero()};
+    Eigen::Matrix3f S2_{Eigen::Matrix3f::Zero()};
     size_t count_{0};
 
+    Eigen::Vector3f sum_view_dir_{Eigen::Vector3f::Zero()};
+    
     Eigen::Vector3f mean_{Eigen::Vector3f::Zero()};
     Eigen::Vector3f normal_{Eigen::Vector3f::Zero()};
-    
     Eigen::Matrix3f covariance_{Eigen::Matrix3f::Identity()};
-    Eigen::Matrix3f eigen_vectors_{Eigen::Matrix3f::Identity()};
-    Eigen::Vector3f eigen_values_{Eigen::Vector3f::Zero()};
+    Eigen::Matrix3f eigenvectors_{Eigen::Matrix3f::Identity()};
+    Eigen::Vector3f eigenvalues_{Eigen::Vector3f::Zero()};
 
-    Eigen::Vector3f avg_view_dir_{Eigen::Vector3f::Zero()};
+    VoxelKey key_{0,0,0};
 
-    VoxelKey key_;
+    uint64_t ts_create_{0};
+    uint64_t ts_update_{0};
 
-    double ts_create_{0};
-    double ts_update_{0};
-
-    bool valid_{false};
+    bool dirty_{true};
 };
 
 } // smip_uav

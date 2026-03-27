@@ -29,6 +29,7 @@ private:
     bool get_transform(const rclcpp::Time& ts);
 
     std::unique_ptr<SensorDataPreprocess> preproc_;
+    std::unique_ptr<SurfelMap> smap_;
 
     // ROS2
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;

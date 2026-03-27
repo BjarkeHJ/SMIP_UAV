@@ -47,6 +47,9 @@ public:
     VoxelKey to_key(float x, float y, float z) const;
     VoxelKey to_key(const Eigen::Vector3f& p) const;
 
+    // World-frame center of a voxel-cell
+    Eigen::Vector3f voxel_center(const VoxelKey& key) const;
+
     // Lookup
     Voxel& get_or_create(const VoxelKey& key); // get if exist - create if not
     Voxel* get(const VoxelKey& key);
@@ -71,14 +74,15 @@ public:
     void clear() { voxels_.clear(); }
 
     float voxel_size() const { return config_.voxel_size; }
+    float voxel_inv_size() const { return inv_voxel_size_; }
 
     // Stats
     size_t total_surfel_count() const;
 
 private:
     VoxelMap voxels_;
-    float inv_voxle_size_{0};
     Config config_;
+    float inv_voxel_size_{0};
 }; 
 
 
