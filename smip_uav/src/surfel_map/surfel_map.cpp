@@ -2,7 +2,7 @@
 
 namespace smip_uav {
 
-SurfelMap::SurfelMap(const Config& cfg) : grid_(cfg.grid_config), config_(cfg) {}
+SurfelMap::SurfelMap(const Config& cfg) : grid_(cfg.grid_config), config_(cfg), tentative_timeout_ns_(cfg.tentative_timeout_sec * SEC_TO_NS) {}
 
 void SurfelMap::integrate_frame(const Frame& frame) {
     const Eigen::Isometry3f& T_ws = frame.tf_pose;
@@ -294,8 +294,7 @@ void SurfelMap::evict_stale(Voxel& voxel, int64_t timestamp) {
     for (uint8_t i = 0; i < voxel.count; ) {
         const auto& s = voxel.surfels[i];
         if (!s.is_mature(config_.surfel_min_points)) {
-            const float age = static_cast<float>(timestamp - s.updated_at());
-            if (age > config_.tentative_timeout_sec) {
+            if ((timestamp - s.updated_at()) > tentative_timeout_ns_) {
                 voxel.remove_at(i);
                 continue;
             }

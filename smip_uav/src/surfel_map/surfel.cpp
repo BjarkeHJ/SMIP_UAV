@@ -133,8 +133,8 @@ float Surfel::priority(int64_t now, size_t min_points_mature) const {
         static_cast<float>(count_) / static_cast<float>(min_points_mature), 1.0f);
     
     const float quality = planarity();
-    const float age = std::max(static_cast<float>(now - ts_update_), 0.0f);
-    const float recency = 1.0f / (1.0f + 0.2f * age);
+    const float age_sec = static_cast<float>(std::max(now - ts_update_, int64_t{0})) * NS_TO_SEC;
+    const float recency = 1.0f / (1.0f + 0.2f * age_sec);
     return 0.4f * maturity + 0.4f * quality + 0.2f * recency;
 }
 

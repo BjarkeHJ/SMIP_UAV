@@ -10,6 +10,9 @@
 
 namespace smip_uav {
 
+inline constexpr float NS_TO_SEC = 1e-9f;
+inline constexpr float SEC_TO_NS = 1e9f;
+
 struct VoxelKey {
     int32_t x,y,z;
     bool operator==(const VoxelKey& other) const {

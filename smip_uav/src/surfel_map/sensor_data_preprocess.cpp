@@ -22,7 +22,7 @@ Frame SensorDataPreprocess::process(const std::vector<PointXYZ>& pts, const int6
     grid_downsample(pts, gnd, ws);
     build_range_image(ws);
  
-    Frame frame_out(proj_.W, proj_.H, ts_ns);
+    Frame frame_out(proj_.W, proj_.H, timestamp);
     estimate_normals(ws, frame_out);
     return frame_out;
 }

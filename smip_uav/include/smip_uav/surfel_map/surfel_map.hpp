@@ -73,6 +73,9 @@ private:
     bool has_public_{false};
     Config config_;
     size_t frame_count_{0};
+
+    // Misc
+    int64_t tentative_timeout_ns_{0};
 };
 
 
