@@ -22,10 +22,10 @@ struct Frame {
     std::vector<PointNormal> pixels; // size = H * W, row-major
 
     Frame() = default;
-    Frame(const size_t w, const size_t h, const uint64_t stamp_ns) : W(w), H(h), pixels(w * h, invalid_pixel()), timestamp(stamp_ns) {} // initialize frame with size stamp, and invalid entries
+    Frame(const size_t w, const size_t h, const int64_t stamp_ns) : W(w), H(h), pixels(w * h, invalid_pixel()), timestamp(stamp_ns) {} // initialize frame with size stamp, and invalid entries
 
     Eigen::Isometry3f tf_pose{Eigen::Isometry3f::Identity()}; // Frame World-Sensor transform (odometry state estimate)
-    uint64_t timestamp{0}; // Timestamp for sensor data (For synch.)
+    int64_t timestamp{0}; // Timestamp for sensor data (For synch.)
 
     size_t idx(size_t u, size_t v) const { return v * W + u; }
     PointNormal& operator()(size_t u, size_t v) { return pixels[idx(u, v)]; }

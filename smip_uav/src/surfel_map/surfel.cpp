@@ -2,7 +2,7 @@
 
 namespace smip_uav {
 
-void Surfel::seed(const PointNormal& pn, const Eigen::Vector3f& view_dir, const VoxelKey& key, uint64_t timestamp) {
+void Surfel::seed(const PointNormal& pn, const Eigen::Vector3f& view_dir, const VoxelKey& key, int64_t timestamp) {
     const float w = std::max(pn.w, 1e-6f);
 
     const Eigen::Vector3f p = {pn.px, pn.py, pn.pz};
@@ -26,7 +26,7 @@ void Surfel::seed(const PointNormal& pn, const Eigen::Vector3f& view_dir, const 
     dirty_ = true;
 }
 
-void Surfel::accumulate(const PointNormal& pn, const Eigen::Vector3f& view_dir, uint64_t timestamp) {
+void Surfel::accumulate(const PointNormal& pn, const Eigen::Vector3f& view_dir, int64_t timestamp) {
     const float w = std::max(pn.w, 1e-6f);
     const Eigen::Vector3f p = {pn.px, pn.py, pn.pz};
 
@@ -128,7 +128,7 @@ float Surfel::sphericity() const {
     return eigenvalues_(2) / eigenvalues_(0);
 }
 
-float Surfel::priority(uint64_t now, size_t min_points_mature) const {
+float Surfel::priority(int64_t now, size_t min_points_mature) const {
     const float maturity = std::min(
         static_cast<float>(count_) / static_cast<float>(min_points_mature), 1.0f);
     

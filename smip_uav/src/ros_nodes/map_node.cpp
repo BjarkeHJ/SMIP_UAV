@@ -71,7 +71,7 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     }
     
     rclcpp::Time t_msg = cloud_msg->header.stamp;
-    uint64_t timestamp_ns = static_cast<uint64_t>(t_msg.nanoseconds());
+    int64_t timestamp_ns = static_cast<int64_t>(t_msg.nanoseconds());
 
     // extract point data
     pts_.clear();

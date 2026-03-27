@@ -48,16 +48,16 @@ public:
 
 private:
     // Per-Point integration
-    void associate_and_fuse(const PointNormal& pn, const Eigen::Vector3f& view_dir, uint64_t timestamp);
+    void associate_and_fuse(const PointNormal& pn, const Eigen::Vector3f& view_dir, int64_t timestamp);
     Surfel* find_best_match(Voxel& voxel, const PointNormal& pn);
-    void handle_new_surface(Voxel& voxel, const PointNormal& pn, const Eigen::Vector3f& view_dir, const VoxelKey& key, uint64_t timestamp);
+    void handle_new_surface(Voxel& voxel, const PointNormal& pn, const Eigen::Vector3f& view_dir, const VoxelKey& key, int64_t timestamp);
 
     // Maintenance
-    void run_maintenance(uint64_t timestamp);
+    void run_maintenance(int64_t timestamp);
     void recompute_dirty(Voxel& voxel);
     void merge_similar(Voxel& voxel);
     void merge_boundary_surfels(const VoxelKey& key, Voxel& voxel);
-    void evict_stale(Voxel& voxel, uint64_t timestamp);
+    void evict_stale(Voxel& voxel, int64_t timestamp);
     void evict_low_quality(Voxel& voxel);
 
     void update_public(); // update public map representation
@@ -65,7 +65,7 @@ private:
     // Helpers
     bool merge_ok(const Surfel& a, const Eigen::Vector3f& pos_a_world, const Surfel& b, const Eigen::Vector3f& pos_b_world) const;
     bool merge_ok_same_voxel(const Surfel& a, const Surfel& b, const VoxelKey& key) const;
-    bool try_free_slot(Voxel& voxel, const VoxelKey& key, uint64_t timestamp);
+    bool try_free_slot(Voxel& voxel, const VoxelKey& key, int64_t timestamp);
 
     // State
     VoxelGrid grid_;

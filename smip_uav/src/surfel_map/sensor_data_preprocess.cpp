@@ -12,7 +12,7 @@ SensorDataPreprocess::SensorDataPreprocess(const Config& config) : config_(confi
     proj_.max_range_sq = config_.max_range * config_.max_range;
 }
 
-Frame SensorDataPreprocess::process(const std::vector<PointXYZ>& pts, const uint64_t ts_ns, const GroundPlane* gnd) const {
+Frame SensorDataPreprocess::process(const std::vector<PointXYZ>& pts, const int64_t timestamp, const GroundPlane* gnd) const {
     if (pts.empty()) return Frame(proj_.W, proj_.H, 0);
 
     const size_t n = proj_.W * proj_.H;

@@ -34,7 +34,7 @@ void SurfelMap::integrate_frame(const Frame& frame) {
     }
 }
 
-void SurfelMap::associate_and_fuse(const PointNormal& pn, const Eigen::Vector3f& view_dir, uint64_t timestamp) {
+void SurfelMap::associate_and_fuse(const PointNormal& pn, const Eigen::Vector3f& view_dir, int64_t timestamp) {
     const VoxelKey key = grid_.to_key(pn.px, pn.py, pn.pz);
     Voxel& voxel = grid_.get_or_create(key);
 
@@ -84,7 +84,7 @@ Surfel* SurfelMap::find_best_match(Voxel& voxel, const PointNormal& pn) {
     return best;
 }
 
-void SurfelMap::handle_new_surface(Voxel& voxel, const PointNormal& pn, const Eigen::Vector3f& view_dir, const VoxelKey& key, uint64_t timestamp) {
+void SurfelMap::handle_new_surface(Voxel& voxel, const PointNormal& pn, const Eigen::Vector3f& view_dir, const VoxelKey& key, int64_t timestamp) {
     const Eigen::Vector3f n{pn.nx, pn.ny, pn.nz};
     
     for (const auto& surfel : voxel) {
@@ -103,7 +103,7 @@ void SurfelMap::handle_new_surface(Voxel& voxel, const PointNormal& pn, const Ei
     voxel.try_add(s);
 }
 
-bool SurfelMap::try_free_slot(Voxel& voxel, const VoxelKey& key, uint64_t timestamp) {
+bool SurfelMap::try_free_slot(Voxel& voxel, const VoxelKey& key, int64_t timestamp) {
     // Attempt 1: Merge compatible pair
     for (uint8_t i = 0; i < voxel.count; ++i) {
         for (uint8_t j = i + 1; j < voxel.count; ++j) {
@@ -148,7 +148,7 @@ bool SurfelMap::try_free_slot(Voxel& voxel, const VoxelKey& key, uint64_t timest
     return false; // could not free a slot in voxel for new surfel
 }
 
-void SurfelMap::run_maintenance(uint64_t timestamp) {
+void SurfelMap::run_maintenance(int64_t timestamp) {
     std::vector<VoxelKey> keys;
     keys.reserve(grid_.size());
     for (auto& [key, voxel] : grid_) {
@@ -290,7 +290,7 @@ void SurfelMap::merge_boundary_surfels(const VoxelKey& key, Voxel& voxel) {
     }
 }
 
-void SurfelMap::evict_stale(Voxel& voxel, uint64_t timestamp) {
+void SurfelMap::evict_stale(Voxel& voxel, int64_t timestamp) {
     for (uint8_t i = 0; i < voxel.count; ) {
         const auto& s = voxel.surfels[i];
         if (!s.is_mature(config_.surfel_min_points)) {

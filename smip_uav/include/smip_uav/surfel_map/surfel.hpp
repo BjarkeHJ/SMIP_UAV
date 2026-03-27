@@ -47,7 +47,7 @@ class Surfel {
 public:
     Surfel() = default;
 
-    void accumulate(const PointNormal& pn, const Eigen::Vector3f& view_dir, uint64_t timestamp); // Add a single weighted point
+    void accumulate(const PointNormal& pn, const Eigen::Vector3f& view_dir, int64_t timestamp); // Add a single weighted point
     void merge_from(const Surfel& other); // Absorb existing surfel from same voxel
     void merge_from_translated(const Surfel& other, const Eigen::Vector3f& delta_c); // Absorb existing surfel from different voxel
 
@@ -65,19 +65,19 @@ public:
     float planarity() const;
     float linearity() const;
     float sphericity() const;
-    float priority(uint64_t now, size_t min_points_mature) const;
+    float priority(int64_t now, size_t min_points_mature) const;
     
     size_t point_count() const { return count_; }
     float total_weight() const  { return W_; }
-    uint64_t created_at() const { return ts_create_; }
-    uint64_t updated_at() const { return ts_update_ ; }
+    int64_t created_at() const { return ts_create_; }
+    int64_t updated_at() const { return ts_update_ ; }
     bool needs_recompute() const { return dirty_; }
     const VoxelKey& voxel_key() const { return key_; }
 
     bool is_mature(size_t min_points) const { return count_ >= min_points; }
 
     // Surfel Initialization
-    void seed(const PointNormal& pn, const Eigen::Vector3f& view_dir, const VoxelKey& key, uint64_t timestamp);
+    void seed(const PointNormal& pn, const Eigen::Vector3f& view_dir, const VoxelKey& key, int64_t timestamp);
 
 private:
     // Sufficient statistics
@@ -96,8 +96,8 @@ private:
 
     VoxelKey key_{0,0,0};
 
-    uint64_t ts_create_{0};
-    uint64_t ts_update_{0};
+    int64_t ts_create_{0};
+    int64_t ts_update_{0};
 
     bool dirty_{true};
 };

@@ -41,7 +41,7 @@ public:
 
     // Process the input pts (with optional ground plane filter)
     // return Frame datatype containing point, normal, weight information and can construct 2D images as well (depth, normal, weight)
-    Frame process(const std::vector<PointXYZ>& pts, const uint64_t ts_ns, const GroundPlane* gnd = nullptr) const;
+    Frame process(const std::vector<PointXYZ>& pts, const int64_t timestamp, const GroundPlane* gnd = nullptr) const;
 
 private:
     // projection geometry (immutable after construction)
