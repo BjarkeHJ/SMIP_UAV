@@ -40,6 +40,7 @@ public:
     // Finalized and maintained map (not in fragile state): What is open to the "public"
     bool has_map() const { return has_public_; }
     const VoxelGrid& map() const { return grid_public_; }
+    std::vector<const Surfel*> surfels() const;
 
     size_t frame_count() const { return frame_count_; }
     size_t working_voxel_count() const { return grid_.size(); }

@@ -40,7 +40,7 @@ void SurfelMap::associate_and_fuse(const PointNormal& pn, const Eigen::Vector3f&
 
     // Voxel-local position
     const Eigen::Vector3f center = grid_.voxel_center(key);
-    PointNormal pn_voxel = {pn.px-center[0], pn.px-center[1], pn.pz-center[2], pn.nx, pn.ny, pn.nz, pn.w};
+    PointNormal pn_voxel = {pn.px-center[0], pn.py-center[1], pn.pz-center[2], pn.nx, pn.ny, pn.nz, pn.w};
     
     // Find a suitable surfel -> nullptr if unable
     Surfel* match = find_best_match(voxel, pn_voxel);
@@ -335,6 +335,21 @@ bool SurfelMap::merge_ok_same_voxel(const Surfel& a, const Surfel& b, const Voxe
 void SurfelMap::update_public() {
     grid_public_ = grid_;
     has_public_ = true;
+}
+
+std::vector<const Surfel*> SurfelMap::surfels() const {
+    std::vector<const Surfel*> out;
+    if (!has_public_) return out;
+
+    for (const auto& [key, voxel] : grid_public_) {
+        for (const auto& surfel : voxel) {
+            if (surfel.is_mature(config_.surfel_min_points) && surfel.planarity() >= config_.min_planarity) {
+                out.push_back(&surfel);
+            }
+        }
+    }
+
+    return out;
 }
 
 } // smip_uav
