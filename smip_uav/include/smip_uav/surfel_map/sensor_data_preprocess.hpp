@@ -25,7 +25,7 @@ public:
         // Sensor specs
         size_t tof_res_x{180};
         size_t tof_res_y{240};
-        float min_range{0.1f};
+        float min_range{0.3f};
         float max_range{10.0f};
         
         // Preprocessing

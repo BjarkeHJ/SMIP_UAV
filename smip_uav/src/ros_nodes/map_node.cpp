@@ -11,7 +11,7 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
     depth_ch_ = viz_channels::frame_depth(*viz_, tof_frame_, "tof_depth", rclcpp::SensorDataQoS()); // TODO: ranges from sensor config
     normal_ch_ = viz_channels::frame_normal(*viz_, tof_frame_, "tof_normal", rclcpp::SensorDataQoS());
     weight_ch_ = viz_channels::frame_weight(*viz_, tof_frame_, "tof_weight", rclcpp::SensorDataQoS());
-    surfel_ch_ = viz_channels::surfels_red(*viz_, "odom", "surfel_map_markers", rclcpp::SensorDataQoS());
+    surfel_ch_ = viz_channels::surfels_normal(*viz_, "odom", "surfel_map_markers", rclcpp::SensorDataQoS());
 
     // Preprocessing
     preproc_ = std::make_unique<SensorDataPreprocess>(SensorDataPreprocess::Config{});
@@ -67,7 +67,7 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
             "Failed to get transform from %s to %s",
             cloud_msg->header.frame_id.c_str(), global_frame_.c_str()
         );
-        // return;
+        return;
     }
     
     rclcpp::Time t_msg = cloud_msg->header.stamp;
@@ -104,17 +104,34 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     size_t wvc = smap_->working_surfel_count();
     std::cout << "N Surfels: " << wvc << std::endl;
 
+
+    // Publish updated map
     bool hm = smap_->has_map();
     if (hm) {
         const VoxelGrid& psmap = smap_->map();
         std::cout << "Has public map of size: " << psmap.size() << std::endl;
-        std::vector<const Surfel*> surfls;
+
+        std::unordered_set<uint32_t> current_ids;
+        viz_convs::SurfelVizDelta delta;
+        delta.voxel_size = 0.2f; // set from launch
+
         for (const auto& [key, voxel] : psmap) {
             for (const auto& surfel : voxel) {
-                if (surfel.is_mature(25) && surfel.planarity() >= 0.15f) surfls.push_back(&surfel);
+                if (!surfel.is_mature(25) || surfel.planarity() < 0.15f) continue;
+                const uint32_t sid = surfel.id();
+                current_ids.insert(sid);
+                if (!published_surfel_ids_.count(sid) || surfel.updated_at() >= timestamp_ns) {
+                    delta.to_add.push_back(&surfel);
+                }
             }
         }
-        surfel_ch_.publish(surfls, this->get_clock()->now());
+
+        for (uint32_t old_id : published_surfel_ids_) {
+            if (!current_ids.count(old_id)) delta.to_delete.push_back(old_id);
+        }
+
+        published_surfel_ids_ = std::move(current_ids);
+        surfel_ch_.publish(delta, this->get_clock()->now());
     }
 
     // Publish visualization

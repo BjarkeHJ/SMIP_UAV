@@ -8,6 +8,7 @@
 #include <tf2_ros/buffer.hpp>
 #include <tf2_ros/transform_listener.hpp>
 #include <tf2_eigen/tf2_eigen.hpp>
+#include <unordered_set>
 
 #include "surfel_map/sensor_data_preprocess.hpp"
 #include "surfel_map/surfel_map.hpp"
@@ -53,7 +54,8 @@ private:
     VizChannel<Frame, sensor_msgs::msg::Image> depth_ch_;
     VizChannel<Frame, sensor_msgs::msg::Image> normal_ch_;
     VizChannel<Frame, sensor_msgs::msg::Image> weight_ch_;
-    VizChannel<std::vector<const Surfel*>, visualization_msgs::msg::MarkerArray> surfel_ch_;
+    VizChannel<viz_convs::SurfelVizDelta, visualization_msgs::msg::MarkerArray> surfel_ch_;
+    std::unordered_set<uint32_t> published_surfel_ids_; // helper for delta publishing of surfels (performance increase...)
 
     // Timing
     StopWatch clock_;

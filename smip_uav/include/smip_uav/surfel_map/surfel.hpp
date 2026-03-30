@@ -78,6 +78,7 @@ public:
     const VoxelKey& voxel_key() const { return key_; }
 
     bool is_mature(size_t min_points) const { return count_ >= min_points; }
+    uint32_t id() const { return id_; }
 
     // Surfel Initialization
     void seed(const PointNormal& pn, const Eigen::Vector3f& view_dir, const VoxelKey& key, int64_t timestamp);
@@ -98,6 +99,7 @@ private:
     Eigen::Vector3f eigenvalues_{Eigen::Vector3f::Zero()};
 
     VoxelKey key_{0,0,0};
+    uint32_t id_{0};
 
     int64_t ts_create_{0};
     int64_t ts_update_{0};

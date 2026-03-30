@@ -3,6 +3,8 @@
 namespace smip_uav {
 
 void Surfel::seed(const PointNormal& pn, const Eigen::Vector3f& view_dir, const VoxelKey& key, int64_t timestamp) {
+    static uint32_t id_counter{1};
+    id_ = id_counter++;
     const float w = std::max(pn.w, 1e-6f);
 
     const Eigen::Vector3f p = {pn.px, pn.py, pn.pz};

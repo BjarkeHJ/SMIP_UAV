@@ -18,7 +18,7 @@ public:
         
         // Lifecycle
         size_t surfel_min_points{25};
-        size_t surfel_max_points{10000};
+        size_t surfel_max_points{1000};
         
         // Creation
         float creation_min_normal_separaton_cos{0.85f}; // 0.85 ~32deg
@@ -28,8 +28,8 @@ public:
         float merge_normal_cos{0.90};
         float merge_point_to_plane_max{0.1f};
         float boundary_margin_ratio{0.2f};
-        float tentative_timeout_sec{3.0f};
-        float min_planarity{0.15f};
+        float tentative_timeout_sec{2.0f};
+        float min_planarity{0.1f};
     };
 
     SurfelMap();

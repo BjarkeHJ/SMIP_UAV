@@ -7,7 +7,7 @@
 namespace smip_uav {
 
 struct Voxel {
-    static constexpr uint8_t MAX_NUM_SURFELS_PER_VOXLE = 6;
+    static constexpr uint8_t MAX_NUM_SURFELS_PER_VOXLE = 4;
 
     std::array<Surfel, MAX_NUM_SURFELS_PER_VOXLE> surfels;
     uint8_t count{0};
@@ -35,7 +35,7 @@ public:
     using const_iter_v = VoxelMap::const_iterator;
 
     struct Config {
-        float voxel_size{0.3f};
+        float voxel_size{0.2f};
         size_t initial_bucket_count{10000};
         float max_load_factor{0.75f};
     };
