@@ -5,37 +5,45 @@
 #include <cmath>
 #include <algorithm>
 #include <limits>
+#include <Eigen/Core>
 
 struct PointXYZ {
     float px, py, pz;
 };
 
-struct PointNormal {
-    float px, py, pz; // Point position
-    float nx, ny, nz; // Point normal
-    float w; // Measurement weight
+struct FramePixel {
+    FramePixel(const Eigen::Vector3f& vp, const Eigen::Vector3f& vn, float d, float w) : pos3d(vp), nrm3d(vn), depth(d), weight(w) {}
+    Eigen::Vector3f pos3d;
+    Eigen::Vector3f nrm3d;
+    float depth{std::numeric_limits<float>::infinity()};
+    float weight{0.0f};
+    bool valid{false};
 };
 
 struct Frame {
+    static constexpr uint64_t INVALID_FRAME_ID = 0; 
+
     size_t W{0};
     size_t H{0};
-    std::vector<PointNormal> pixels; // size = H * W, row-major
+    std::vector<FramePixel> pixels; // size = H * W, row-major
 
     Frame() = default;
     Frame(const size_t w, const size_t h, const int64_t stamp_ns) : W(w), H(h), pixels(w * h, invalid_pixel()), timestamp(stamp_ns) {} // initialize frame with size stamp, and invalid entries
 
     Eigen::Isometry3f tf_pose{Eigen::Isometry3f::Identity()}; // Frame World-Sensor transform (odometry state estimate)
-    int64_t timestamp{0}; // Timestamp for sensor data (For synch.)
+    int64_t timestamp{0}; // Timestamp for sensor data
+    uint64_t frame_id{INVALID_FRAME_ID}; // Frame/Scan identifier
 
     size_t idx(size_t u, size_t v) const { return v * W + u; }
-    PointNormal& operator()(size_t u, size_t v) { return pixels[idx(u, v)]; }
-    const PointNormal& operator()(size_t u, size_t v) const { return pixels[idx(u, v)]; }
-    static bool is_valid(const PointNormal& p) {
-        return (std::isfinite(p.px) && std::isfinite(p.py) && std::isfinite(p.pz) && std::isfinite(p.nx) && std::isfinite(p.ny) && std::isfinite(p.nz));
+    FramePixel& operator()(size_t u, size_t v) { return pixels[idx(u, v)]; }
+    const FramePixel& operator()(size_t u, size_t v) const { return pixels[idx(u, v)]; }
+
+    static bool is_valid(const FramePixel& p) {
+        return p.valid && p.pos3d.allFinite() && p.nrm3d.squaredNorm() > 0.0f;
     }
 
-    std::vector<PointNormal> to_points() const {
-        std::vector<PointNormal> out;
+    std::vector<FramePixel> to_points() const {
+        std::vector<FramePixel> out;
         for (const auto& p : pixels) {
             if (is_valid(p)) {
                 out.push_back(p);
@@ -52,9 +60,7 @@ struct Frame {
         std::vector<float> img(pixels.size(), std::numeric_limits<float>::quiet_NaN());
         for (size_t i = 0; i < pixels.size(); ++i) {
             if (!is_valid(pixels[i])) continue;
-            img[i] = std::sqrt(pixels[i].px * pixels[i].px
-                             + pixels[i].py * pixels[i].py
-                             + pixels[i].pz * pixels[i].pz);
+            img[i] = pixels[i].pos3d.squaredNorm();
         }
         return img;
     }
@@ -63,9 +69,9 @@ struct Frame {
         std::vector<float> img(pixels.size() * 3, 0.0f);
         for (size_t i = 0; i < pixels.size(); ++i) {
             if (!is_valid(pixels[i])) continue;
-            img[3 * i + 0] = pixels[i].nx;
-            img[3 * i + 1] = pixels[i].ny;
-            img[3 * i + 2] = pixels[i].nz;
+            img[3 * i + 0] = pixels[i].nrm3d.x();
+            img[3 * i + 1] = pixels[i].nrm3d.y();
+            img[3 * i + 2] = pixels[i].nrm3d.z();
         }
         return img;
     }
@@ -74,15 +80,15 @@ struct Frame {
         std::vector<float> img(pixels.size(), 0.0f);
         for (size_t i = 0; i < pixels.size(); ++i) {
             if (!is_valid(pixels[i])) continue;
-            img[i] = pixels[i].w;
+            img[i] = pixels[i].weight;
         }
         return img;
     }
 
 private:
-    static PointNormal invalid_pixel() {
+    static FramePixel invalid_pixel() {
         constexpr float nan = std::numeric_limits<float>::quiet_NaN();
-        return {nan, nan, nan, 0, 0, 0, 0};
+        return {Eigen::Vector3f::Constant(nan), Eigen::Vector3f::Zero(), nan, nan};
     }
 };
 

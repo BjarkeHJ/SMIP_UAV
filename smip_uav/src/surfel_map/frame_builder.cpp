@@ -1,9 +1,8 @@
-#include "surfel_map/sensor_data_preprocess.hpp"
-#include <cmath>
+#include "surfel_map/frame_builder.hpp"
 
 namespace smip_uav {
 
-SensorDataPreprocess::SensorDataPreprocess(const Config& config) : config_(config) {
+FrameBuilder::FrameBuilder(const Config& config) : config_(config) {
     // derive projection geometry
     proj_.ds = std::max<size_t>(1, config.ds_factor);
     proj_.W  = (config.tof_res_x + proj_.ds - 1) / proj_.ds;
@@ -12,27 +11,19 @@ SensorDataPreprocess::SensorDataPreprocess(const Config& config) : config_(confi
     proj_.max_range_sq = config_.max_range * config_.max_range;
 }
 
-Frame SensorDataPreprocess::process(const std::vector<PointXYZ>& pts, const int64_t timestamp, const GroundPlane* gnd) const {
+Frame FrameBuilder::process(const std::vector<PointXYZ>& pts, const int64_t timestamp, const GroundPlane* gnd) {
     if (pts.empty()) return Frame(proj_.W, proj_.H, 0);
 
-    const size_t n = proj_.W * proj_.H;
-    Workspace ws;
-    ws.resize(n);
- 
-    grid_downsample(pts, gnd, ws);
-    build_range_image(ws);
- 
-    Frame frame_out(proj_.W, proj_.H, timestamp);
-    estimate_normals(ws, frame_out);
-    return frame_out;
+    // Construct current frame from sensor geometry
+    Frame frame(proj_.W, proj_.H, timestamp);
+
+    assemble_grid(pts, frame, gnd);
+    estimate_normals(frame);
+
+    return frame;
 }
 
-void SensorDataPreprocess::grid_downsample(const std::vector<PointXYZ>& pts, const GroundPlane* gnd, Workspace& ws) const {
-    for (auto& cell : ws.grid) {
-        cell.valid    = false;
-        cell.range_sq = std::numeric_limits<float>::infinity();
-    }
- 
+void FrameBuilder::assemble_grid(const std::vector<PointXYZ>& pts, Frame& frame, const GroundPlane* gnd) {
     const auto& P = proj_;
  
     // for (const auto& p : pts) {
@@ -67,41 +58,32 @@ void SensorDataPreprocess::grid_downsample(const std::vector<PointXYZ>& pts, con
                 
         if (u >= P.W || v >= P.H) continue;
  
-        GridCell& cell = ws.grid[P.idx(u, v)];
-        if (r_sq < cell.range_sq) {
-            cell.point = pv;
-            cell.range_sq = r_sq;
-            cell.valid = true;
+        // Keep closest
+        FramePixel& px = frame(u, v);
+        if (!px.valid || r_sq < px.depth * px.depth) {
+            px.pos3d = pv;
+            px.depth = std::sqrt(r_sq);
+            px.valid = true;
         }
     }
 }
 
-void SensorDataPreprocess::build_range_image(Workspace& ws) const {
-    const size_t n = proj_.W * proj_.H;
-    for (size_t i = 0; i < n; ++i) {
-        ws.range_img[i] = ws.grid[i].valid
-            ? std::sqrt(ws.grid[i].range_sq)
-            : std::numeric_limits<float>::infinity();
-    }
-}
-
-void SensorDataPreprocess::estimate_normals(const Workspace& ws, Frame& frame_out) const {
+void FrameBuilder::estimate_normals(Frame& frame) {
     const auto& P = proj_; 
-    const std::vector<float>& range = ws.range_img;
- 
+
     // fetch a valid neighbour or nullopt
-    auto neighbour = [&](size_t u, size_t v, int du, int dv) -> std::pair<bool, Eigen::Vector3f> {
+    auto fetch_nb = [&](size_t u, size_t v, int du, int dv) -> std::pair<bool, Eigen::Vector3f> {
         const size_t uu = u + du, vv = v + dv;
         if (uu >= P.W || vv >= P.H) return {false, {}};
+        
+        FramePixel& px_uv = frame(u,v);
+        FramePixel& px_uuvv = frame(uu,vv);
+        if (!px_uuvv.valid) return {false, {}};
  
-        const size_t in = P.idx(uu, vv);
-        if (!ws.grid[in].valid) return {false, {}};
- 
-        const float rn = range[in];
-        if (!std::isfinite(rn) || std::fabs(rn - range[P.idx(u, v)]) > config_.jump_thresh)
+        if (!std::isfinite(px_uuvv.depth) || std::fabs(px_uuvv.depth - px_uv.depth) > config_.jump_thresh)
             return {false, {}};
  
-        return {true, ws.grid[in].point};
+        return {true, px_uuvv.pos3d};
     };
  
     // central / forward / backward difference
@@ -116,15 +98,15 @@ void SensorDataPreprocess::estimate_normals(const Workspace& ws, Frame& frame_ou
  
     for (size_t v = 0; v < P.H; ++v) {
         for (size_t u = 0; u < P.W; ++u) {
-            const size_t ic = P.idx(u, v);
-            if (!ws.grid[ic].valid) continue;
+            FramePixel& px = frame(u,v);
+            if (!px.valid) continue;
  
-            const Eigen::Vector3f& Pc = ws.grid[ic].point;
+            const Eigen::Vector3f& Pc = px.pos3d;
  
-            auto [okL, Pl] = neighbour(u, v, -1,  0);
-            auto [okR, Pr] = neighbour(u, v, +1,  0);
-            auto [okU, Pu] = neighbour(u, v,  0, -1);
-            auto [okD, Pd] = neighbour(u, v,  0, +1);
+            auto [okL, Pl] = fetch_nb(u, v, -1,  0);
+            auto [okR, Pr] = fetch_nb(u, v, +1,  0);
+            auto [okU, Pu] = fetch_nb(u, v,  0, -1);
+            auto [okD, Pd] = fetch_nb(u, v,  0, +1);
  
             auto [hasU, tu] = finite_diff(okL, Pl, okR, Pr, Pc);
             auto [hasV, tv] = finite_diff(okU, Pu, okD, Pd, Pc);
@@ -151,16 +133,8 @@ void SensorDataPreprocess::estimate_normals(const Workspace& ws, Frame& frame_ou
             const float sin_theta = nn / (un * vn);
             const float w_quality = sin_theta * q_anis;
  
-            PointNormal pn;
-            pn.px = Pc.x();
-            pn.py = Pc.y();
-            pn.pz = Pc.z();
-            pn.nx = normal.x();
-            pn.ny = normal.y();
-            pn.nz = normal.z();
-            pn.w = w_range * w_incidence * w_quality;
-
-            frame_out(u, v) = pn;
+            px.nrm3d = normal;
+            px.weight = w_range * w_incidence * w_quality;
         }
     }
 }

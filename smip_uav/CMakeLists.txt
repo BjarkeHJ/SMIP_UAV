@@ -38,10 +38,10 @@ add_executable(
     ${SMIP_EXEC}
     src/smip_exec.cpp
     src/ros_nodes/map_node.cpp
-    src/surfel_map/sensor_data_preprocess.cpp
-    src/surfel_map/voxel_grid.cpp
-    src/surfel_map/surfel.cpp
-    src/surfel_map/surfel_map.cpp
+    src/surfel_map/frame_builder.cpp
+    # src/surfel_map/voxel_grid.cpp
+    # src/surfel_map/surfel.cpp
+    # src/surfel_map/surfel_map.cpp
 )
 
 ament_target_dependencies(

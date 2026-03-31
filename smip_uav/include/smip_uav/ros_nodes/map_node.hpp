@@ -10,8 +10,8 @@
 #include <tf2_eigen/tf2_eigen.hpp>
 #include <unordered_set>
 
-#include "surfel_map/sensor_data_preprocess.hpp"
-#include "surfel_map/surfel_map.hpp"
+#include "surfel_map/frame_builder.hpp"
+// #include "surfel_map/surfel_map.hpp"
 
 #include "common/stop_watch.hpp"
 #include "viz_utils/viz_utils.hpp"
@@ -29,8 +29,8 @@ private:
     void pointcloud_data_callback(const sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg);
     bool get_transform(const rclcpp::Time& ts);
 
-    std::unique_ptr<SensorDataPreprocess> preproc_;
-    std::unique_ptr<SurfelMap> smap_;
+    std::unique_ptr<FrameBuilder> frame_builder_;
+    // std::unique_ptr<SurfelMap> smap_;
 
     // ROS2
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
@@ -54,8 +54,8 @@ private:
     VizChannel<Frame, sensor_msgs::msg::Image> depth_ch_;
     VizChannel<Frame, sensor_msgs::msg::Image> normal_ch_;
     VizChannel<Frame, sensor_msgs::msg::Image> weight_ch_;
-    VizChannel<viz_convs::SurfelVizDelta, visualization_msgs::msg::MarkerArray> surfel_ch_;
-    std::unordered_set<uint32_t> published_surfel_ids_; // helper for delta publishing of surfels (performance increase...)
+    // VizChannel<viz_convs::SurfelVizDelta, visualization_msgs::msg::MarkerArray> surfel_ch_;
+    // std::unordered_set<uint32_t> published_surfel_ids_; // helper for delta publishing of surfels (performance increase...)
 
     // Timing
     StopWatch clock_;
