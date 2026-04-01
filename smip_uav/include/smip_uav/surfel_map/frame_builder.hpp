@@ -1,10 +1,6 @@
 #ifndef FRAME_BUILDER_HPP_
 #define FRAME_BUILDER_HPP_
 
-#include <vector>
-#include <Eigen/Core>
-#include <Eigen/Geometry>
-
 #include "common/point_types.hpp"
 
 namespace smip_uav {
@@ -26,7 +22,7 @@ public:
         // Preprocessing
         bool transpose_input{false}; // True: Real Sensor data, False: Gz Sim data (message layout order is reversed also)
         bool enable_ground_filter{false};
-        float ground_z_min{0.05f};
+        float ground_z_min{0.05f};  
         int ds_factor{1};
         float jump_thresh{0.15};
     };

@@ -10,7 +10,7 @@
 
 // ==== INCLUDE SUPPORTED DATA TYPES (Custom) ====
 #include "common/point_types.hpp"
-#include "surfel_map/surfel.hpp"
+// #include "surfel_map/surfel.hpp"
 
 // ==== VISUALIZATION CONVERTERS ====
 namespace viz_convs {
@@ -97,6 +97,70 @@ inline sensor_msgs::msg::Image weight_mono8(
         m.data[i] = static_cast<uint8_t>(buf[i] * 255.0f);
     }
     return m;
+}
+
+inline visualization_msgs::msg::MarkerArray surfel_to_markers(
+    const std::vector<Surfel>& surfels,
+    const rclcpp::Time& stamp,
+    const std::string& frame_id,
+    float scale_factor = 3.0f) {  // 3σ ellipsoid by default
+
+    visualization_msgs::msg::MarkerArray ma;
+    ma.markers.reserve(surfels.size());
+
+    for (size_t i = 0; i < surfels.size(); ++i) {
+        const auto& s = surfels[i];
+        if (!s.valid()) continue;
+
+        const auto c = s.centroid();
+        const auto ev = s.eigenvalues();
+        auto evecs = s.eigenvectors();
+
+        if (!c.allFinite() || !ev.allFinite()) continue;
+
+        // Ensure proper rotation (det = +1), not a reflection
+        if (evecs.determinant() < 0.0f)
+            evecs.col(0) = -evecs.col(0);
+
+        Eigen::Quaternionf q(evecs);
+        q.normalize();
+
+        visualization_msgs::msg::Marker m;
+        m.header.frame_id = frame_id;
+        m.header.stamp = stamp;
+        m.ns = "surfels";
+        m.id = static_cast<int>(i);
+        m.type = visualization_msgs::msg::Marker::SPHERE;
+        m.action = visualization_msgs::msg::Marker::ADD;
+
+        m.pose.position.x = c.x();
+        m.pose.position.y = c.y();
+        m.pose.position.z = c.z();
+
+        m.pose.orientation.x = q.x();
+        m.pose.orientation.y = q.y();
+        m.pose.orientation.z = q.z();
+        m.pose.orientation.w = q.w();
+
+        // Diameter = 2 * scale_factor * sqrt(eigenvalue) per axis
+        // Eigenvalues sorted ascending: col(0)=smallest=normal dir
+        m.scale.x = 2.0f * scale_factor * std::sqrt(ev(0) + 1e-6f);  // normal direction (thin)
+        m.scale.y = 2.0f * scale_factor * std::sqrt(ev(1) + 1e-6f);  // tangent 1
+        m.scale.z = 2.0f * scale_factor * std::sqrt(ev(2) + 1e-6f);  // tangent 2
+
+        // Color by weight
+        float t = std::clamp(s.W / 10.0f, 0.0f, 1.0f);
+        m.color.r = t;
+        m.color.g = 0.3f;
+        m.color.b = 1.0f - t;
+        m.color.a = 0.6f;
+
+        m.lifetime = rclcpp::Duration::from_seconds(0.2);
+
+        ma.markers.push_back(m);
+    }
+
+    return ma;
 }
 
 // struct SurfelVizDelta {
@@ -229,6 +293,18 @@ inline VizChannel<Frame, sensor_msgs::msg::Image> frame_weight(
                 static_cast<uint32_t>(f.H),
                 stamp,
                 fid);
+        });
+}
+
+inline VizChannel<std::vector<Surfel>, visualization_msgs::msg::MarkerArray> surfels(
+    Visualizer& viz,
+    const std::string& frame_id,
+    const std::string& subtopic,
+    rclcpp::QoS qos
+) {
+    return viz.create<std::vector<Surfel>, visualization_msgs::msg::MarkerArray>(subtopic, frame_id, qos,
+        [](const std::vector<Surfel>& S, const rclcpp::Time& stamp, const std::string& fid) {
+            return viz_convs::surfel_to_markers(S, stamp, fid);
         });
 }
 

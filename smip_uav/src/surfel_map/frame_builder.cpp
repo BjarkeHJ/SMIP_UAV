@@ -110,11 +110,16 @@ void FrameBuilder::estimate_normals(Frame& frame) {
  
             auto [hasU, tu] = finite_diff(okL, Pl, okR, Pr, Pc);
             auto [hasV, tv] = finite_diff(okU, Pu, okD, Pd, Pc);
-            if (!hasU || !hasV) continue;
- 
+            if (!hasU || !hasV) {
+                px.valid = false;
+                continue;
+            }
             Eigen::Vector3f normal = tu.cross(tv);
             const float nn = normal.norm();
-            if (nn < 1e-6f) continue;
+            if (nn < 1e-6f) {
+                px.valid = false;
+                continue;
+            }
             normal /= nn;
  
             if (normal.dot(Pc) > 0.0f)

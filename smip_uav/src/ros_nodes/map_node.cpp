@@ -11,11 +11,14 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
     depth_ch_ = viz_channels::frame_depth(*viz_, tof_frame_, "tof_depth", rclcpp::SensorDataQoS()); // TODO: ranges from sensor config
     normal_ch_ = viz_channels::frame_normal(*viz_, tof_frame_, "tof_normal", rclcpp::SensorDataQoS());
     weight_ch_ = viz_channels::frame_weight(*viz_, tof_frame_, "tof_weight", rclcpp::SensorDataQoS());
+    surfel_ch_ = viz_channels::surfels(*viz_, tof_frame_, "tof_surfel", rclcpp::SensorDataQoS());
+
     // surfel_ch_ = viz_channels::surfels_normal(*viz_, "odom", "surfel_map_markers", rclcpp::SensorDataQoS());
 
-    // Preprocessing
+    // Scan processing
     frame_builder_ = std::make_unique<FrameBuilder>(FrameBuilder::Config{});
-    
+    frame_processor_ = std::make_unique<FrameProcessor>(FrameProcessor::Config{});
+
     // SurfelMap
     // smap_ = std::make_unique<SurfelMap>(SurfelMap::Config{});
 
@@ -97,8 +100,12 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     double time = clock_.toc();
     std::cout << "Frame Build with: " << current_frame_.valid_count() << " points in " << time << " ms." << std::endl;
 
-
     current_frame_.tf_pose = tf_; // Set transform (maybe change the way this is done...)
+
+    clock_.tic();
+    auto v_surfels = frame_processor_->process(current_frame_);
+    double fproc_t = clock_.toc();
+    std::cout << "Frame processed in: " << fproc_t << " ms." << std::endl;
 
     // clock_.tic();    
     // smap_->integrate_frame(current_frame_);
@@ -142,6 +149,7 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     depth_ch_.publish(current_frame_, this->get_clock()->now());
     normal_ch_.publish(current_frame_, this->get_clock()->now());
     weight_ch_.publish(current_frame_, this->get_clock()->now());
+    surfel_ch_.publish(v_surfels, t_msg);
 }
 
 
