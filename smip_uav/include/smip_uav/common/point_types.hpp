@@ -144,6 +144,10 @@ struct Surfel {
             evals_ = eig.eigenvalues().cwiseMax(0.0f);
             evecs_ = eig.eigenvectors();
 
+            if (evals_(1) < 1e-8f) return;  // rank-deficient, < 2D spread
+            const float planarity = evals_(0) / evals_(1);
+            if (planarity > 0.3f) return;   // too thick to be a surface patch
+
             normal_ = evecs_.col(0);
             if (normal_.dot(centroid_) > 0.0f) {
                 normal_ = -normal_;

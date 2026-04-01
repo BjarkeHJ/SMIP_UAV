@@ -9,14 +9,14 @@ class FrameProcessor {
 public:
     struct Config {
         size_t max_slic_iter{3};
-        size_t seed_spacing{10};
-        size_t perturb_window{3};
+        size_t seed_spacing{6};
+        size_t perturb_window{1};
         float convergence_px{0.5f};
 
         float w_spatial{1.0f};
         float w_normal{1.5f};
 
-        size_t min_px{12};
+        size_t min_px{4};
         float min_total_w{5.0f};
     };
     

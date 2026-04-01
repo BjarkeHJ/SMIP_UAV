@@ -113,6 +113,7 @@ inline visualization_msgs::msg::MarkerArray surfel_to_markers(
         if (!s.valid()) continue;
 
         const auto c = s.centroid();
+        const auto n = s.normal();
         const auto ev = s.eigenvalues();
         auto evecs = s.eigenvectors();
 
@@ -144,15 +145,14 @@ inline visualization_msgs::msg::MarkerArray surfel_to_markers(
 
         // Diameter = 2 * scale_factor * sqrt(eigenvalue) per axis
         // Eigenvalues sorted ascending: col(0)=smallest=normal dir
-        m.scale.x = 2.0f * scale_factor * std::sqrt(ev(0) + 1e-6f);  // normal direction (thin)
-        m.scale.y = 2.0f * scale_factor * std::sqrt(ev(1) + 1e-6f);  // tangent 1
-        m.scale.z = 2.0f * scale_factor * std::sqrt(ev(2) + 1e-6f);  // tangent 2
+        m.scale.x = 1.0f * scale_factor * std::sqrt(ev(0) + 1e-6f);  // normal direction (thin)
+        m.scale.y = 1.0f * scale_factor * std::sqrt(ev(1) + 1e-6f);  // tangent 1
+        m.scale.z = 1.0f * scale_factor * std::sqrt(ev(2) + 1e-6f);  // tangent 2
 
         // Color by weight
-        float t = std::clamp(s.W / 10.0f, 0.0f, 1.0f);
-        m.color.r = t;
-        m.color.g = 0.3f;
-        m.color.b = 1.0f - t;
+        m.color.r = std::abs(n.x());
+        m.color.g = std::abs(n.y());
+        m.color.b = std::abs(n.z());
         m.color.a = 0.6f;
 
         m.lifetime = rclcpp::Duration::from_seconds(0.2);
