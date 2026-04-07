@@ -18,13 +18,16 @@ public:
         size_t tof_res_y{240};
         float min_range{0.3f};
         float max_range{10.0f};
+        float pixel_pitch{0.01071f}; //Radians per pixel -> DIRECTLY FROM SENSOR SPECS: 0.5(tan(hfov/2)/(resx/2) + tan(vfox/2)/resy/2)
         
         // Preprocessing
         bool transpose_input{false}; // True: Real Sensor data, False: Gz Sim data (message layout order is reversed also)
         bool enable_ground_filter{false};
-        float ground_z_min{0.05f};  
+        float ground_z_min{0.05f};
         int ds_factor{1};
-        float jump_thresh{0.15};
+
+        float edge_normal_th{0.52f}; // normal simi for edges ~30deg
+        float edge_depth_min{0.02f}; // 2cm floor for close range
     };
 
     FrameBuilder() = default;
@@ -44,6 +47,7 @@ private:
 
     void assemble_grid(const std::vector<PointXYZ>& pts, Frame& frame, const GroundPlane* gnd);
     void estimate_normals(Frame& frame);
+    void compute_edges(Frame& frame);
     
     Config config_;
     Projection proj_;

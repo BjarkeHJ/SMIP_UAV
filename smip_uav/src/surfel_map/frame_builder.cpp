@@ -19,6 +19,7 @@ Frame FrameBuilder::process(const std::vector<PointXYZ>& pts, const int64_t time
 
     assemble_grid(pts, frame, gnd);
     estimate_normals(frame);
+    compute_edges(frame);
 
     return frame;
 }
@@ -70,6 +71,7 @@ void FrameBuilder::assemble_grid(const std::vector<PointXYZ>& pts, Frame& frame,
 
 void FrameBuilder::estimate_normals(Frame& frame) {
     const auto& P = proj_; 
+    const float pp = config_.pixel_pitch;
 
     // fetch a valid neighbour or nullopt
     auto fetch_nb = [&](size_t u, size_t v, int du, int dv) -> std::pair<bool, Eigen::Vector3f> {
@@ -79,9 +81,10 @@ void FrameBuilder::estimate_normals(Frame& frame) {
         FramePixel& px_uv = frame(u,v);
         FramePixel& px_uuvv = frame(uu,vv);
         if (!px_uuvv.valid) return {false, {}};
- 
-        if (!std::isfinite(px_uuvv.depth) || std::fabs(px_uuvv.depth - px_uv.depth) > config_.jump_thresh)
-            return {false, {}};
+        
+        const float r_avg = 0.5f * (px_uv.depth + px_uuvv.depth); // average depth
+        const float tau = 2.0f * r_avg * pp + config_.edge_depth_min; // multiplier of 2 to increase tolerance
+        if (std::fabs(px_uuvv.depth - px_uv.depth) > tau) return {false, {}};
  
         return {true, px_uuvv.pos3d};
     };
@@ -140,6 +143,46 @@ void FrameBuilder::estimate_normals(Frame& frame) {
  
             px.nrm3d = normal;
             px.weight = w_range * w_incidence * w_quality;
+        }
+    }
+}
+
+void FrameBuilder::compute_edges(Frame& frame) {
+    const float cos_thresh = std::cos(config_.edge_normal_th);
+    const float pp = config_.pixel_pitch;
+    
+    for (size_t v = 0; v < frame.H; ++v) {
+        for (size_t u = 0; u < frame.W; ++u) {
+            const FramePixel& px = frame(u, v);
+            if (!px.valid) continue;
+
+            // Horizontal edge: (u,v) -> (u+1,v)
+            if (u + 1 < frame.W) {
+                const FramePixel& pr = frame(u,v);
+                if (pr.valid) {
+                    const float r_avg = 0.5f * (px.depth + pr.depth);
+                    const float tau = r_avg * pp + config_.edge_depth_min;
+                    const float dd = std::abs(px.depth - pr.depth);
+                    const float nn = px.nrm3d.dot(pr.nrm3d);
+                    if (dd <= tau && nn >= cos_thresh) {
+                        frame.edge_h[frame.idx(u,v)] = 1; // passable
+                    }
+                }
+            }
+
+            // Vertical edge: (u,v) -> (u,v+1)
+            if (v + 1 < frame.H) {
+                const FramePixel& pd = frame(u,v);
+                if (pd.valid) {
+                    const float r_avg = 0.5f * (px.depth + pd.depth);
+                    const float tau = r_avg * pp + config_.edge_depth_min;
+                    const float dd = std::abs(px.depth - pd.depth);
+                    const float nn = px.nrm3d.dot(pd.nrm3d);
+                    if (dd <= tau && nn >= cos_thresh) {
+                        frame.edge_v[frame.idx(u,v)] = 1; // passable
+                    }
+                }
+            }
         }
     }
 }

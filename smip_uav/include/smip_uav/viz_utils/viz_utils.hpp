@@ -99,6 +99,31 @@ inline sensor_msgs::msg::Image weight_mono8(
     return m;
 }
 
+inline sensor_msgs::msg::Image edge_binary(
+        const std::vector<uint8_t> eh,
+        const std::vector<uint8_t> ev,
+        uint32_t w, uint32_t h,
+        const rclcpp::Time& stamp,
+        const std::string& frame_id) {
+    
+    sensor_msgs::msg::Image m;
+    m.header.stamp = stamp;
+    m.header.frame_id = frame_id;
+    m.height = h;
+    m.width = w;
+    m.encoding = "mono8";
+    m.is_bigendian = false;
+    m.step = w;
+    m.data.resize(w*h, 0);
+
+    for (size_t i = 0; i < w * h; ++i) {
+        if (eh[i] == 1 || ev[i] == 1) {
+            m.data[i] = 255;
+        }
+    }
+    return m;
+}
+
 inline visualization_msgs::msg::MarkerArray surfel_to_markers(
     const std::vector<Surfel>& surfels,
     const rclcpp::Time& stamp,
@@ -150,9 +175,13 @@ inline visualization_msgs::msg::MarkerArray surfel_to_markers(
         m.scale.z = 1.0f * scale_factor * std::sqrt(ev(2) + 1e-6f);  // tangent 2
 
         // Color by weight
-        m.color.r = std::abs(n.x());
-        m.color.g = std::abs(n.y());
-        m.color.b = std::abs(n.z());
+        // m.color.r = std::abs(n.x());
+        // m.color.g = std::abs(n.y());
+        // m.color.b = std::abs(n.z());
+
+        m.color.r = s.view_cos_theta;
+        m.color.g = 0.0f;
+        m.color.b = 0.0f;
         m.color.a = 0.6f;
 
         m.lifetime = rclcpp::Duration::from_seconds(0.2);
@@ -162,82 +191,6 @@ inline visualization_msgs::msg::MarkerArray surfel_to_markers(
 
     return ma;
 }
-
-// struct SurfelVizDelta {
-//     std::vector<const smip_uav::Surfel*> to_add;
-//     std::vector<uint32_t> to_delete;
-//     float voxel_size{0.2f};
-// };
-
-// inline visualization_msgs::msg::MarkerArray surfel_normal_rgb8(
-//         const SurfelVizDelta& delta,
-//         const rclcpp::Time& stamp,
-//         const std::string& frame_id) {
-
-//     visualization_msgs::msg::MarkerArray m;
-//     m.markers.reserve(delta.to_add.size() + delta.to_delete.size());
-
-//     for (uint32_t del_id : delta.to_delete) {
-//         visualization_msgs::msg::Marker md;
-//         md.header.stamp    = stamp;
-//         md.header.frame_id = frame_id;
-//         md.ns     = "surfels";
-//         md.id     = static_cast<int>(del_id);
-//         md.action = visualization_msgs::msg::Marker::DELETE;
-//         m.markers.push_back(md);
-//     }
-
-//     for (const smip_uav::Surfel* s : delta.to_add) {
-//         visualization_msgs::msg::Marker ms;
-//         ms.header.stamp    = stamp;
-//         ms.header.frame_id = frame_id;
-//         ms.ns     = "surfels";
-//         ms.id     = static_cast<int>(s->id());
-//         ms.type   = visualization_msgs::msg::Marker::SPHERE;
-//         ms.action = visualization_msgs::msg::Marker::ADD;
-
-//         // --- position ---
-//         const Eigen::Vector3f p = s->world_mean(delta.voxel_size);
-//         ms.pose.position.x = p.x();
-//         ms.pose.position.y = p.y();
-//         ms.pose.position.z = p.z();
-
-//         // --- orientation from eigenvectors ---
-//         const Eigen::Matrix3f& evec = s->eigenvectors();
-//         const Eigen::Vector3f& eval = s->eigenvalues();
-
-//         Eigen::Matrix3f R;
-//         R.col(0) = evec.col(2);
-//         R.col(1) = evec.col(1);
-//         R.col(2) = evec.col(0);
-
-//         if (R.determinant() < 0.0f) R.col(0) = -R.col(0);
-
-//         Eigen::Quaternionf q(R);
-//         q.normalize();
-//         ms.pose.orientation.x = q.x();
-//         ms.pose.orientation.y = q.y();
-//         ms.pose.orientation.z = q.z();
-//         ms.pose.orientation.w = q.w();
-
-//         // Evs are descending (l1 > l2 > l3)
-//         ms.scale.x = 2.0f * std::sqrt(std::max(eval(2), 1e-6f));
-//         ms.scale.y = 2.0f * std::sqrt(std::max(eval(1), 1e-6f));
-//         ms.scale.z = 2.0f * std::sqrt(std::max(eval(0), 1e-6f));
-
-//         // color: normal direction
-//         const Eigen::Vector3f& n = s->normal();
-//         ms.color.r = n.x() * 0.5f + 0.5f;
-//         ms.color.g = n.y() * 0.5f + 0.5f;
-//         ms.color.b = n.z() * 0.5f + 0.5f;
-//         ms.color.a = 0.85f;
-
-//         m.markers.push_back(ms);
-//     }
-
-//     return m;
-// }
-
 
 } // viz_convs
 
@@ -296,6 +249,24 @@ inline VizChannel<Frame, sensor_msgs::msg::Image> frame_weight(
         });
 }
 
+inline VizChannel<Frame, sensor_msgs::msg::Image> frame_edge(
+        Visualizer& viz,
+        const std::string& frame_id,
+        const std::string& subtopic,
+        rclcpp::QoS qos
+    ) {
+    return viz.create<Frame, sensor_msgs::msg::Image>(subtopic, frame_id, qos,
+        [](const Frame& f, const rclcpp::Time& stamp, const std::string& fid) {
+            return viz_convs::edge_binary(
+                f.edge_h,
+                f.edge_v,
+                static_cast<uint32_t>(f.W),
+                static_cast<uint32_t>(f.H),
+                stamp,
+                fid);
+        });
+}
+
 inline VizChannel<std::vector<Surfel>, visualization_msgs::msg::MarkerArray> surfels(
     Visualizer& viz,
     const std::string& frame_id,
@@ -307,18 +278,6 @@ inline VizChannel<std::vector<Surfel>, visualization_msgs::msg::MarkerArray> sur
             return viz_convs::surfel_to_markers(S, stamp, fid);
         });
 }
-
-// inline VizChannel<viz_convs::SurfelVizDelta, visualization_msgs::msg::MarkerArray> surfels_normal(
-//         Visualizer& viz,
-//         const std::string& frame_id,
-//         const std::string& subtopic,
-//         rclcpp::QoS qos
-//     ) {
-//     return viz.create<viz_convs::SurfelVizDelta, visualization_msgs::msg::MarkerArray>(subtopic, frame_id, qos,
-//         [](const viz_convs::SurfelVizDelta& delta, const rclcpp::Time& stamp, const std::string& fid) {
-//             return viz_convs::surfel_normal_rgb8(delta, stamp, fid);
-//         });
-// }
 
 } // viz_channels
 

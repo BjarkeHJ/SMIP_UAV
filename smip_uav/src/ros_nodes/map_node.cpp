@@ -11,6 +11,7 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
     depth_ch_ = viz_channels::frame_depth(*viz_, tof_frame_, "tof_depth", rclcpp::SensorDataQoS()); // TODO: ranges from sensor config
     normal_ch_ = viz_channels::frame_normal(*viz_, tof_frame_, "tof_normal", rclcpp::SensorDataQoS());
     weight_ch_ = viz_channels::frame_weight(*viz_, tof_frame_, "tof_weight", rclcpp::SensorDataQoS());
+    edge_ch_ = viz_channels::frame_edge(*viz_, tof_frame_, "tof_edge", rclcpp::SensorDataQoS());
     surfel_ch_ = viz_channels::surfels(*viz_, tof_frame_, "tof_surfel", rclcpp::SensorDataQoS());
 
     // surfel_ch_ = viz_channels::surfels_normal(*viz_, "odom", "surfel_map_markers", rclcpp::SensorDataQoS());
@@ -149,6 +150,7 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     depth_ch_.publish(current_frame_, this->get_clock()->now());
     normal_ch_.publish(current_frame_, this->get_clock()->now());
     weight_ch_.publish(current_frame_, this->get_clock()->now());
+    edge_ch_.publish(current_frame_, this->get_clock()->now());
     surfel_ch_.publish(v_surfels, t_msg);
 }
 

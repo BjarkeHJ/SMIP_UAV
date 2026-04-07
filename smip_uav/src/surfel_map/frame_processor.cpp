@@ -6,26 +6,20 @@ namespace smip_uav {
 FrameProcessor::FrameProcessor(const Config& cfg) : config_(cfg) {
     const float S = static_cast<float>(config_.seed_spacing);
     inv_S_sq_ = 1.0f / (S * S);
-    pixel_pitch_ = 0.5 * (std::tan(86.0f / 180.0f * M_PI / 180.0f) + std::tan(106.0f / 240.0f * M_PI / 180)); // DIRECTLY FROM SENSOR SPECS 0.5(hfov/px_res_x + vfov/px_res_y)
 }
 
 std::vector<Surfel> FrameProcessor::process(const Frame& cur_frame) {
     if (cur_frame.W == 0 || cur_frame.H == 0) return {};
     const size_t N = cur_frame.H * cur_frame.W;
     labels_.assign(N, -1);
+    distances_.assign(N, std::numeric_limits<float>::max());
 
     init_seeds(cur_frame);
     std::cout << "Number of seeds: " << seeds_.size() << std::endl;
 
-    // Run SLIC-Based pixel clustering 
-    for (size_t iter = 0; iter < config_.max_slic_iter; ++iter) {
-        assign_pixels(cur_frame);
-        const float max_shift = update_seeds(cur_frame);
-        if (max_shift < config_.convergence_px) {
-            std::cout << "Finished early, iter: " << iter + 1 << std::endl;
-            break;
-        }
-    }
+    // Run wavefront-based pixel clustering
+    assign_pixels(cur_frame);
+    update_seeds(cur_frame);
 
     // Extract resulting Surfel statistics from clusters
     std::vector<Surfel> result = aggregate();
@@ -80,88 +74,182 @@ void FrameProcessor::init_seeds(const Frame& f) {
 }
 
 void FrameProcessor::assign_pixels(const Frame& f) {
-    const int search = 2 * static_cast<int>(config_.seed_spacing);
-    distances_.assign(f.H*f.W, std::numeric_limits<float>::max());
-    
+    bq_.clear();
+
+    // seed the wavefront from all initial seeds
     for (size_t k = 0; k < seeds_.size(); ++k) {
         const Seed& seed = seeds_[k];
-        const int su = static_cast<int>(std::round(seed.u));    
+        const int su = static_cast<int>(std::round(seed.u));
         const int sv = static_cast<int>(std::round(seed.v));
 
-        const int u_min = std::max(0, su - search);
-        const int u_max = std::min(static_cast<int>(f.W) - 1, su + search);
-        const int v_min = std::max(0, sv - search);
-        const int v_max = std::min(static_cast<int>(f.H) - 1, sv + search);
+        if (su < 0 || su >= static_cast<int>(f.W) || sv < 0 || sv >= static_cast<int>(f.H)) continue;
 
-        for (int v = v_min; v <= v_max; ++v) {
-            for (int u = u_min; u <= u_max; ++u) {
-                const FramePixel& px = f(u,v);
-                if (!px.valid) continue;
+        const FramePixel& px = f(su, sv);
+        if (!px.valid) continue;
 
-                const float d = distance(seed, u, v, px);
-                const size_t idx = f.idx(u, v);
+        const size_t idx = f.idx(su, sv);
+        const float d = distance(seed, su, sv, px);
 
-                if (d < distances_[idx]) {
-                    distances_[idx] = d;
-                    labels_[idx] = static_cast<int32_t>(k);
-                }
+        if (d < distances_[idx]) {
+            distances_[idx] = d;
+            labels_[idx] = static_cast<int32_t>(k);
+            bq_.push(static_cast<uint32_t>(idx), d);
+        }
+    }
+
+    // Expand wavefront - pop cycles until convergence
+    uint32_t idx;
+    while (bq_.pop(idx)) {
+        const size_t u = idx % f.W;
+        const size_t v = idx / f.W;
+        const int32_t k = labels_[idx];
+        if (k < 0) continue;
+
+        struct NB {
+            int du, dv;
+        };
+        static constexpr NB nbrs[4] = {{1,0}, {-1,0}, {0,1}, {0,-1}};
+
+        for (const auto& nb : nbrs) {
+            const int nu = static_cast<int>(u) + nb.du;
+            const int nv = static_cast<int>(v) + nb.dv;
+
+            if (nu < 0 || nu >= static_cast<int>(f.W) || nv < 0 || nv >= static_cast<int>(f.H)) continue;
+
+            // edge check
+            bool passable = false;
+            if (nb.dv == 0) {
+                // horizontal
+                const size_t eu = std::min(u, static_cast<size_t>(nu));
+                passable = f.edge_h[f.idx(eu, v)] != 0;
+            }
+            else {
+                // vertical
+                const size_t ev = std::min(v, static_cast<size_t>(nv));
+                passable = f.edge_v[f.idx(u, ev)] != 0;
+            }
+            if (!passable) continue;
+
+            const FramePixel& npx = f(nu, nv);
+            if (!npx.valid) continue; // should not happen - depth map should catch this
+
+            const float d_new = distance(seeds_[k], nu, nv, npx);
+            if (d_new > config_.max_cluster_dist) continue;
+
+            const size_t nidx = f.idx(nu,nv);
+            if (d_new < distances_[nidx]) {
+                distances_[nidx] = d_new;
+                labels_[nidx] = k;
+                bq_.push(static_cast<uint32_t>(nidx), d_new);
             }
         }
     }
 }
 
-float FrameProcessor::update_seeds(const Frame& f) {
+void FrameProcessor::update_seeds(const Frame& f) {
     seed_accums_.resize(seeds_.size());
     for (auto& a : seed_accums_) a.reset();
 
-    // accumulated over labelled points
+    // spatial Huber accumulation
     for (size_t v = 0; v < f.H; ++v) {
         for (size_t u = 0; u < f.W; ++u) {
             const int32_t label = labels_[f.idx(u,v)];
-            if (label < 0) continue; // unlabled
+            if (label < 0) continue;
 
             const FramePixel& px = f(u,v);
             if (!px.valid) continue;
 
+            const Seed& seed = seeds_[label];
+            const float r = (px.pos3d - seed.pos).norm();
+            const float delta_h = seed.depth * config_.pixel_pitch * config_.seed_spacing;
+            const float huber_scale = (r <= delta_h || r < 1e-6f) ? 1.0f : delta_h / r;
+            const float w = px.weight * huber_scale;
+
             SeedAccum& a = seed_accums_[label];
-            const float w = px.weight;
-            
-            a.sum_u += w*u;
-            a.sum_v += w*v;
-            a.sum_pos += w*px.pos3d;
-            a.sum_nrm += w*px.nrm3d;
+            a.sum_u += w * u;
+            a.sum_v += w * v;
+            a.sum_pos += w * px.pos3d;
+            a.sum_nrm += w * px.nrm3d;
             a.sum_outer += w * px.pos3d * px.pos3d.transpose();
             a.sum_w += w;
             a.count++;
         }
     }
 
-    // track max shift in centroid (convergence)
-    float max_shift_sq = 0.0f;
+    // extract preliminary centroid + normal per seed
+    struct PlaneEstimate {
+        Eigen::Vector3f centroid;
+        Eigen::Vector3f normal;
+        bool valid;
+    };
+    std::vector<PlaneEstimate> planes(seeds_.size());
+
     for (size_t k = 0; k < seeds_.size(); ++k) {
         const auto& a = seed_accums_[k];
-        if (a.count == 0 || a.sum_w < 1e-12) continue;
- 
-        auto& seed = seeds_[k];
- 
-        const float new_u = static_cast<float>(a.sum_u / a.sum_w);
-        const float new_v = static_cast<float>(a.sum_v / a.sum_w);
- 
-        const float du = new_u - seed.u;
-        const float dv = new_v - seed.v;
-        max_shift_sq = std::max(max_shift_sq, du * du + dv * dv);
- 
-        seed.u = new_u;
-        seed.v = new_v;
-        seed.pos = (a.sum_pos / a.sum_w).cast<float>();
- 
-        Eigen::Vector3f nrm_avg = (a.sum_nrm / a.sum_w).cast<float>();
-        const float nrm_len = nrm_avg.norm();
-        seed.nrm = (nrm_len > 1e-6f) ? (nrm_avg / nrm_len) : seed.nrm;
-        seed.depth = seed.pos.norm();
+        planes[k].valid = false;
+        if (a.count < config_.min_px || a.sum_w < 1e-8f) continue;
+
+        const Eigen::Vector3f centroid = a.sum_pos / a.sum_w;
+        const Eigen::Matrix3f cov = a.sum_outer / a.sum_w - centroid * centroid.transpose();
+
+        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(cov);
+        if (eig.info() != Eigen::Success) continue;
+
+        Eigen::Vector3f normal = eig.eigenvectors().col(0);  // smallest eigenvalue
+        if (normal.dot(centroid) > 0.0f) normal = -normal;   // face camera
+
+        planes[k].centroid = centroid;
+        planes[k].normal = normal;
+        planes[k].valid = true;
     }
- 
-    return std::sqrt(max_shift_sq);
+
+    // reaccumulate with point-to-plane Huber
+    for (auto& a : seed_accums_) a.reset();
+
+    for (size_t v = 0; v < f.H; ++v) {
+        for (size_t u = 0; u < f.W; ++u) {
+            const int32_t label = labels_[f.idx(u,v)];
+            if (label < 0) continue;
+
+            const FramePixel& px = f(u,v);
+            if (!px.valid) continue;
+
+            const Seed& seed = seeds_[label];
+            float w = px.weight;
+
+            // Spatial Huber
+            const float r = (px.pos3d - seed.pos).norm();
+            const float delta_h = seed.depth * config_.pixel_pitch * config_.seed_spacing;
+            const float spatial_scale = (r <= delta_h || r < 1e-6f) ? 1.0f : delta_h / r;
+            w *= spatial_scale;
+
+            // Point-to-plane Huber
+            if (planes[label].valid) {
+                const Eigen::Vector3f& c = planes[label].centroid;
+                const Eigen::Vector3f& n = planes[label].normal;
+                const float residual = std::abs(n.dot(px.pos3d - c));
+
+                // delta_p: expected noise in the normal direction at this range
+                // ToF depth noise ~ alpha * r^2, project onto normal
+                const float depth = px.depth;
+                const float delta_p = 0.005f * depth * depth;
+
+                const float plane_scale = (residual <= delta_p || residual < 1e-6f)
+                                           ? 1.0f
+                                           : delta_p / residual;
+                w *= plane_scale;
+            }
+
+            SeedAccum& a = seed_accums_[label];
+            a.sum_u += w * u;
+            a.sum_v += w * v;
+            a.sum_pos += w * px.pos3d;
+            a.sum_nrm += w * px.nrm3d;
+            a.sum_outer += w * px.pos3d * px.pos3d.transpose();
+            a.sum_w += w;
+            a.count++;
+        }
+    }
 }
 
 float FrameProcessor::distance(const Seed& seed, size_t u, size_t v, const FramePixel& px) const {
@@ -169,7 +257,7 @@ float FrameProcessor::distance(const Seed& seed, size_t u, size_t v, const Frame
     const float dv = static_cast<float>(v) - seed.v;
     const float d_img = (du * du + dv * dv) * inv_S_sq_;
 
-    const float c_spatial = seed.depth * pixel_pitch_ * config_.seed_spacing;
+    const float c_spatial = std::min(seed.depth, px.depth) * config_.pixel_pitch * config_.seed_spacing;
     const float d_spatial = (px.pos3d - seed.pos).squaredNorm() / (c_spatial * c_spatial);
 
     const float n_dot = std::clamp(std::abs(px.nrm3d.dot(seed.nrm)), 0.0f, 1.0f);
@@ -214,16 +302,19 @@ std::vector<Surfel> FrameProcessor::aggregate() const {
  
     for (size_t k = 0; k < seed_accums_.size(); ++k) {
         const auto& a = seed_accums_[k];
- 
+
         if (a.count < config_.min_px) continue;
-        if (a.sum_w < config_.min_total_w) continue;
  
         Surfel sf;
         sf.sid = next_surfel_id_++;
         sf.W  = a.sum_w;
         sf.S1 = a.sum_pos;
-        sf.S2 = a.sum_outer;    // raw Σ wᵢ pᵢ pᵢᵀ
+        sf.S2 = a.sum_outer;
 
+        const Eigen::Vector3f& view_dir = sf.centroid().normalized();
+        const Eigen::Vector3f& normal = sf.normal();
+        sf.view_cos_theta = -normal.dot(view_dir);
+        
         surfels.push_back(sf);
     }
  

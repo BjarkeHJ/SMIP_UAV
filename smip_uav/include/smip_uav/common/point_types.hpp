@@ -14,9 +14,10 @@ struct PointXYZ {
 };
 
 struct FramePixel {
+    FramePixel() = default;
     FramePixel(const Eigen::Vector3f& vp, const Eigen::Vector3f& vn, float d, float w) : pos3d(vp), nrm3d(vn), depth(d), weight(w) {}
-    Eigen::Vector3f pos3d;
-    Eigen::Vector3f nrm3d;
+    Eigen::Vector3f pos3d{Eigen::Vector3f::Constant(std::numeric_limits<float>::quiet_NaN())};
+    Eigen::Vector3f nrm3d{Eigen::Vector3f::Zero()};
     float depth{std::numeric_limits<float>::infinity()};
     float weight{0.0f};
     bool valid{false};
@@ -30,11 +31,19 @@ struct Frame {
     std::vector<FramePixel> pixels; // size = H * W, row-major
 
     Frame() = default;
-    Frame(const size_t w, const size_t h, const int64_t stamp_ns) : W(w), H(h), pixels(w * h, invalid_pixel()), timestamp(stamp_ns) {} // initialize frame with size stamp, and invalid entries
+    // construct frame with size stamp and assign sizes to edge map
+    Frame(const size_t w, const size_t h, const int64_t stamp_ns) : W(w), H(h), pixels(w * h), timestamp(stamp_ns) {
+        edge_h.assign(W * H, 0); 
+        edge_v.assign(W * H, 0);
+    }
 
     Eigen::Isometry3f tf_pose{Eigen::Isometry3f::Identity()}; // Frame World-Sensor transform (odometry state estimate)
     int64_t timestamp{0}; // Timestamp for sensor data
     uint64_t frame_id{INVALID_FRAME_ID}; // Frame/Scan identifier
+
+    // Edge map
+    std::vector<uint8_t> edge_h;
+    std::vector<uint8_t> edge_v;
 
     size_t idx(size_t u, size_t v) const { return v * W + u; }
     FramePixel& operator()(size_t u, size_t v) { return pixels[idx(u, v)]; }
@@ -58,7 +67,7 @@ struct Frame {
         return std::count_if(pixels.begin(), pixels.end(), is_valid);
     }
 
-    // USED FOR VIZ ONLY
+    // === USED FOR VIZ ONLY === 
     std::vector<float> depth_image() const {
         std::vector<float> img(pixels.size(), std::numeric_limits<float>::quiet_NaN());
         for (size_t i = 0; i < pixels.size(); ++i) {
@@ -85,19 +94,13 @@ struct Frame {
         }
         return img;
     }
-
-private:
-    static FramePixel invalid_pixel() {
-        constexpr float nan = std::numeric_limits<float>::quiet_NaN();
-        return {Eigen::Vector3f::Constant(nan), Eigen::Vector3f::Zero(), nan, nan};
-    }
 };
 
 struct Surfel {
     float W{0.0f}; // Sum of weights
+    float view_cos_theta{90.0f};
     Eigen::Vector3f S1{Eigen::Vector3f::Zero()}; // sum of products of weighted pointxyz
     Eigen::Matrix3f S2{Eigen::Matrix3f::Zero()}; // sum of weigthed outer products of pointxyz (uncentered)
-
     uint32_t sid{0};
 
     void fuse(const Surfel& other) {
@@ -146,7 +149,7 @@ struct Surfel {
 
             if (evals_(1) < 1e-8f) return;  // rank-deficient, < 2D spread
             const float planarity = evals_(0) / evals_(1);
-            if (planarity > 0.3f) return;   // too thick to be a surface patch
+            if (planarity > 0.2f) return;   // too thick to be a surface patch
 
             normal_ = evecs_.col(0);
             if (normal_.dot(centroid_) > 0.0f) {
