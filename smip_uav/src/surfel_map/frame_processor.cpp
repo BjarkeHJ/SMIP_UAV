@@ -167,7 +167,7 @@ float FrameProcessor::distance(const Seed& seed, size_t u, size_t v, const Frame
     const float dv = static_cast<float>(v) - seed.v;
     const float d_img = (du * du + dv * dv) * inv_S_sq_;
 
-    const float c_spatial = seed.depth * pixel_pitch_ * config_.seed_spacing + 0.001f; // 0.001f from min range (10cm)
+    const float c_spatial = seed.depth * pixel_pitch_ * config_.seed_spacing;
     const float d_spatial = (px.pos3d - seed.pos).squaredNorm() / (c_spatial * c_spatial);
 
     const float n_dot = std::clamp(std::abs(px.nrm3d.dot(seed.nrm)), 0.0f, 1.0f);
