@@ -17,6 +17,7 @@ std::vector<Surfel> FrameProcessor::process(const Frame& cur_frame) {
     init_seeds(cur_frame);
     std::cout << "Number of seeds: " << seeds_.size() << std::endl;
 
+    // Run SLIC-Based pixel clustering 
     for (size_t iter = 0; iter < config_.max_slic_iter; ++iter) {
         assign_pixels(cur_frame);
         const float max_shift = update_seeds(cur_frame);
@@ -26,6 +27,7 @@ std::vector<Surfel> FrameProcessor::process(const Frame& cur_frame) {
         }
     }
 
+    // Extract resulting Surfel statistics from clusters
     std::vector<Surfel> result = aggregate();
     std::cout << "Surfels: " << result.size() << std::endl;
     return result;
