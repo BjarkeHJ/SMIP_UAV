@@ -57,7 +57,7 @@ private:
     VizChannel<Frame, sensor_msgs::msg::Image> normal_ch_;
     VizChannel<Frame, sensor_msgs::msg::Image> weight_ch_;
     VizChannel<Frame, sensor_msgs::msg::Image> edge_ch_;
-    VizChannel<std::vector<Surfel>, visualization_msgs::msg::MarkerArray> surfel_ch_;
+    VizChannel<std::vector<FrameSurfel>, visualization_msgs::msg::MarkerArray> surfel_ch_;
 
     // Timing
     StopWatch clock_;

@@ -125,7 +125,7 @@ inline sensor_msgs::msg::Image edge_binary(
 }
 
 inline visualization_msgs::msg::MarkerArray surfel_to_markers(
-    const std::vector<Surfel>& surfels,
+    const std::vector<FrameSurfel>& surfels,
     const rclcpp::Time& stamp,
     const std::string& frame_id,
     float scale_factor = 3.0f) {  // 3σ ellipsoid by default
@@ -135,12 +135,11 @@ inline visualization_msgs::msg::MarkerArray surfel_to_markers(
 
     for (size_t i = 0; i < surfels.size(); ++i) {
         const auto& s = surfels[i];
-        if (!s.valid()) continue;
 
-        const auto c = s.centroid();
-        const auto n = s.normal();
-        const auto ev = s.eigenvalues();
-        auto evecs = s.eigenvectors();
+        const auto c = s.centroid;
+        const auto n = s.normal;
+        const auto ev = s.eigenvalues;
+        auto evecs = s.eigenvectors;
 
         if (!c.allFinite() || !ev.allFinite()) continue;
 
@@ -267,14 +266,14 @@ inline VizChannel<Frame, sensor_msgs::msg::Image> frame_edge(
         });
 }
 
-inline VizChannel<std::vector<Surfel>, visualization_msgs::msg::MarkerArray> surfels(
+inline VizChannel<std::vector<FrameSurfel>, visualization_msgs::msg::MarkerArray> surfels(
     Visualizer& viz,
     const std::string& frame_id,
     const std::string& subtopic,
     rclcpp::QoS qos
 ) {
-    return viz.create<std::vector<Surfel>, visualization_msgs::msg::MarkerArray>(subtopic, frame_id, qos,
-        [](const std::vector<Surfel>& S, const rclcpp::Time& stamp, const std::string& fid) {
+    return viz.create<std::vector<FrameSurfel>, visualization_msgs::msg::MarkerArray>(subtopic, frame_id, qos,
+        [](const std::vector<FrameSurfel>& S, const rclcpp::Time& stamp, const std::string& fid) {
             return viz_convs::surfel_to_markers(S, stamp, fid);
         });
 }

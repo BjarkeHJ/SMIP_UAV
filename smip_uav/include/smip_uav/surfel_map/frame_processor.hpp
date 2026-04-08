@@ -21,7 +21,7 @@ public:
     FrameProcessor() = default;
     explicit FrameProcessor(const Config& cfg);
     
-    std::vector<Surfel> process(const Frame& cur_frame);
+    std::vector<FrameSurfel> process(const Frame& cur_frame);
 
 private:
     struct Seed {
@@ -86,7 +86,7 @@ private:
     void init_seeds(const Frame& f);
     void assign_pixels(const Frame& f);
     void update_seeds(const Frame& f);
-    std::vector<Surfel> aggregate() const;
+    std::vector<FrameSurfel> aggregate() const;
 
     // Helpers
     float distance(const Seed& seed, size_t u, size_t v, const FramePixel& px) const;

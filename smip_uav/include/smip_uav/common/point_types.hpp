@@ -96,71 +96,31 @@ struct Frame {
     }
 };
 
-struct Surfel {
-    float W{0.0f}; // Sum of weights
-    float view_cos_theta{90.0f};
-    Eigen::Vector3f S1{Eigen::Vector3f::Zero()}; // sum of products of weighted pointxyz
-    Eigen::Matrix3f S2{Eigen::Matrix3f::Zero()}; // sum of weigthed outer products of pointxyz (uncentered)
+struct FrameSurfel {
     uint32_t sid{0};
-
-    void fuse(const Surfel& other) {
-        W += other.W;
-        S1 += other.S1;
-        S2 += other.S2;
-        dirty_ = true;
-        return;
-    }
-
-    // accessors: will recompute if needed
-    Eigen::Vector3f centroid() const { recompute(); return centroid_; }
-    Eigen::Vector3f normal() const { recompute(); return normal_; }
-    Eigen::Matrix3f covariance() const { recompute(); return cov_; }
-    Eigen::Vector3f eigenvalues() const { recompute(); return evals_; }
-    Eigen::Matrix3f eigenvectors() const { recompute(); return evecs_; }
-    float radius() const { recompute(); return radius_; }
-    bool valid() const { recompute(); return valid_; }
-
-private:
-    mutable bool dirty_{true};
-    mutable bool valid_;
-    mutable Eigen::Vector3f centroid_, normal_;
-    mutable Eigen::Matrix3f cov_;
-    mutable Eigen::Vector3f evals_;
-    mutable Eigen::Matrix3f evecs_;
-    mutable float radius_;
-
-    void recompute() const {
-        if (!dirty_) return;
-        valid_ = false;
-        dirty_ = false;
-
-        if (W < 1e-8f) return;
-
-        centroid_ = S1 / W;
-        if (!centroid_.allFinite()) return;
-
-        cov_ = S2 / W - centroid_ * centroid_.transpose();
-
-        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(cov_);
-        if (eig.info() != Eigen::Success) return;
-
-        evals_ = eig.eigenvalues().cwiseMax(0.0f);
-        evecs_ = eig.eigenvectors();
-
-        if (evals_(1) < 1e-8f) return;  // rank-deficient, < 2D spread
-        const float planarity = evals_(0) / evals_(1);
-        if (planarity > 0.2f) return;   // too thick to be a surface patch
-
-        normal_ = evecs_.col(0);
-        if (normal_.dot(centroid_) > 0.0f) {
-            normal_ = -normal_;
-        }
-
-        radius_ = std::sqrt(evals_(1) + evals_(2));
-
-        valid_ = true;
-        dirty_ = false;
-    }
+    Eigen::Vector3f centroid;
+    Eigen::Vector3f normal;
+    Eigen::Matrix3f R;
+    Eigen::Vector3f eigenvalues;
+    Eigen::Matrix3f eigenvectors;
+    float weight;
+    float view_cos_theta{90.0f};
 };
+
+struct MapSurfel {
+    uint32_t id;
+    Eigen::Vector3f centroid;
+    Eigen::Vector3f P;
+    Eigen::Vector3f normal_acc;
+    float normal_w;
+    Eigen::Vector3f eigenvalues;
+    Eigen::Matrix3f eigenvectors;
+    uint32_t obs_count{0};
+    int64_t last_seen{0};
+
+    Eigen::Vector3f normal() const { return normal_acc.normalized(); }
+    bool is_mature(uint32_t min_obs) const { return obs_count >= min_obs; }
+};
+
 
 #endif

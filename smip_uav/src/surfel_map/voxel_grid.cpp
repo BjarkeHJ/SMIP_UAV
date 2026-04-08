@@ -3,7 +3,7 @@
 namespace smip_uav {
 
 // VOXEL
-Surfel* Voxel::try_add(const Surfel& s) {
+MapSurfel* Voxel::try_add(const MapSurfel& s) {
     if (full()) return nullptr;
     surfels[count] = s;
     return &surfels[count++];

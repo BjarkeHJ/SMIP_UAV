@@ -40,11 +40,11 @@ struct VoxelKeyHash {
 struct Voxel {
     static constexpr uint8_t MAX_NUM_SURFELS_PER_VOXLE = 15;
 
-    std::array<Surfel, MAX_NUM_SURFELS_PER_VOXLE> surfels;
+    std::array<MapSurfel, MAX_NUM_SURFELS_PER_VOXLE> surfels;
     uint8_t count{0};
 
     // Try to add surfel: Return pointer to added surfel if added - nullptr if full/unable to add. 
-    Surfel* try_add(const Surfel& s); 
+    MapSurfel* try_add(const MapSurfel& s); 
     
     // Remove surfel at index. Return false if index is invalid
     bool remove_at(uint8_t idx);
@@ -53,10 +53,10 @@ struct Voxel {
     bool empty() const { return  count == 0; }
 
     // Iterable ranger over active surfels
-    Surfel* begin() { return surfels.data(); }
-    Surfel* end() { return surfels.data() + count; }
-    const Surfel* begin() const { return surfels.data(); }
-    const Surfel* end() const { return surfels.data() + count; }
+    MapSurfel* begin() { return surfels.data(); }
+    MapSurfel* end() { return surfels.data() + count; }
+    const MapSurfel* begin() const { return surfels.data(); }
+    const MapSurfel* end() const { return surfels.data() + count; }
 };
 
 class VoxelGrid {

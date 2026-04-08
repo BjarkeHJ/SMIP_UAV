@@ -8,7 +8,7 @@ FrameProcessor::FrameProcessor(const Config& cfg) : config_(cfg) {
     inv_S_sq_ = 1.0f / (S * S);
 }
 
-std::vector<Surfel> FrameProcessor::process(const Frame& cur_frame) {
+std::vector<FrameSurfel> FrameProcessor::process(const Frame& cur_frame) {
     if (cur_frame.W == 0 || cur_frame.H == 0) return {};
     const size_t N = cur_frame.H * cur_frame.W;
     labels_.assign(N, -1);
@@ -22,7 +22,7 @@ std::vector<Surfel> FrameProcessor::process(const Frame& cur_frame) {
     update_seeds(cur_frame);
 
     // Extract resulting Surfel statistics from clusters
-    std::vector<Surfel> result = aggregate();
+    std::vector<FrameSurfel> result = aggregate();
     std::cout << "Surfels: " << result.size() << std::endl;
     return result;
 }
@@ -296,26 +296,51 @@ float FrameProcessor::depth_gradient(const Frame& f, size_t u, size_t v) const {
     return gx * gx + gy * gy;
 }
 
-std::vector<Surfel> FrameProcessor::aggregate() const {
-    std::vector<Surfel> surfels;
+std::vector<FrameSurfel> FrameProcessor::aggregate() const {
+    std::vector<FrameSurfel> surfels;
     surfels.reserve(seed_accums_.size());
- 
+
+    const float alpha = 0.005f; // ToF depth noise coefficient
+
     for (size_t k = 0; k < seed_accums_.size(); ++k) {
         const auto& a = seed_accums_[k];
-
-        if (a.count < config_.min_px) continue;
- 
-        Surfel sf;
-        sf.sid = next_surfel_id_++;
-        sf.W  = a.sum_w;
-        sf.S1 = a.sum_pos;
-        sf.S2 = a.sum_outer;
-
-        const Eigen::Vector3f& view_dir = sf.centroid().normalized();
-        const Eigen::Vector3f& normal = sf.normal();
-        sf.view_cos_theta = -normal.dot(view_dir);
+        if (a.count < config_.min_px || a.sum_w < 1e-8f) continue;
         
-        surfels.push_back(sf);
+        const Eigen::Vector3f centroid = a.sum_pos / a.sum_w;
+        if (!centroid.allFinite()) continue;
+
+        const Eigen::Matrix3f C = a.sum_outer / a.sum_w - centroid * centroid.transpose();
+
+        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(C);
+        if (eig.info() != Eigen::Success) continue;
+
+        const Eigen::Vector3f evals = eig.eigenvalues().cwiseMax(0.0f);
+        const Eigen::Matrix3f evecs = eig.eigenvectors();
+
+        if (evals(1) < 1e-8f) continue;
+        if (evals(0) / evals(1) > 0.2f) continue;
+
+        Eigen::Vector3f normal = evecs.col(0);
+        if (normal.dot(centroid) > 0.0f) normal = -normal;
+
+        // Observation uncertainty covariance model
+        const float Neff = a.sum_w;
+        const float r = centroid.norm();
+        const float sigma_r = alpha * r * r;
+
+        Eigen::Matrix3f R = C / Neff + (sigma_r * sigma_r) * (normal * normal.transpose());
+
+        FrameSurfel fs;
+        fs.sid = next_surfel_id_++;
+        fs.centroid = centroid;
+        fs.normal = normal;
+        fs.R = R;
+        fs.eigenvalues = evals;
+        fs.eigenvectors = evecs;
+        fs.weight = Neff;
+        fs.view_cos_theta = -normal.dot(centroid.normalized());
+
+        surfels.push_back(fs);
     }
  
     return surfels;
