@@ -59,9 +59,6 @@ private:
     VizChannel<Frame, sensor_msgs::msg::Image> edge_ch_;
     VizChannel<std::vector<Surfel>, visualization_msgs::msg::MarkerArray> surfel_ch_;
 
-    // VizChannel<viz_convs::SurfelVizDelta, visualization_msgs::msg::MarkerArray> surfel_ch_;
-    // std::unordered_set<uint32_t> published_surfel_ids_; // helper for delta publishing of surfels (performance increase...)
-
     // Timing
     StopWatch clock_;
 

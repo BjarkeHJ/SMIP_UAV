@@ -120,47 +120,47 @@ struct Surfel {
     float radius() const { recompute(); return radius_; }
     bool valid() const { recompute(); return valid_; }
 
-    private:
-        mutable bool dirty_{true};
-        mutable Eigen::Vector3f centroid_, normal_;
-        mutable Eigen::Matrix3f cov_;
-        mutable Eigen::Vector3f evals_;
-        mutable Eigen::Matrix3f evecs_;
-        mutable float radius_;
-        mutable bool valid_;
+private:
+    mutable bool dirty_{true};
+    mutable bool valid_;
+    mutable Eigen::Vector3f centroid_, normal_;
+    mutable Eigen::Matrix3f cov_;
+    mutable Eigen::Vector3f evals_;
+    mutable Eigen::Matrix3f evecs_;
+    mutable float radius_;
 
-        void recompute() const {
-            if (!dirty_) return;
-            valid_ = false;
-            dirty_ = false;
+    void recompute() const {
+        if (!dirty_) return;
+        valid_ = false;
+        dirty_ = false;
 
-            if (W < 1e-8f) return;
+        if (W < 1e-8f) return;
 
-            centroid_ = S1 / W;
-            if (!centroid_.allFinite()) return;
+        centroid_ = S1 / W;
+        if (!centroid_.allFinite()) return;
 
-            cov_ = S2 / W - centroid_ * centroid_.transpose();
+        cov_ = S2 / W - centroid_ * centroid_.transpose();
 
-            Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(cov_);
-            if (eig.info() != Eigen::Success) return;
+        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(cov_);
+        if (eig.info() != Eigen::Success) return;
 
-            evals_ = eig.eigenvalues().cwiseMax(0.0f);
-            evecs_ = eig.eigenvectors();
+        evals_ = eig.eigenvalues().cwiseMax(0.0f);
+        evecs_ = eig.eigenvectors();
 
-            if (evals_(1) < 1e-8f) return;  // rank-deficient, < 2D spread
-            const float planarity = evals_(0) / evals_(1);
-            if (planarity > 0.2f) return;   // too thick to be a surface patch
+        if (evals_(1) < 1e-8f) return;  // rank-deficient, < 2D spread
+        const float planarity = evals_(0) / evals_(1);
+        if (planarity > 0.2f) return;   // too thick to be a surface patch
 
-            normal_ = evecs_.col(0);
-            if (normal_.dot(centroid_) > 0.0f) {
-                normal_ = -normal_;
-            }
-
-            radius_ = std::sqrt(evals_(1) + evals_(2));
-
-            valid_ = true;
-            dirty_ = false;
+        normal_ = evecs_.col(0);
+        if (normal_.dot(centroid_) > 0.0f) {
+            normal_ = -normal_;
         }
+
+        radius_ = std::sqrt(evals_(1) + evals_(2));
+
+        valid_ = true;
+        dirty_ = false;
+    }
 };
 
 #endif
