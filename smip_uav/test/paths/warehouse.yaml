@@ -1,0 +1,74 @@
+waypoints:
+  # Straight up (y increasing)
+  - pos: [0, 0, 5]
+    yaw: 0.0
+  - pos: [0, 1, 5]
+    yaw: 0.0
+  - pos: [0, 3, 5]
+    yaw: 0.0
+  - pos: [0, 5, 5]
+    yaw: 0.0
+  - pos: [0, 7, 5]
+    yaw: 0.0
+  - pos: [0, 9, 5]
+    yaw: 0.0
+  - pos: [0, 11, 5]
+    yaw: 0.0
+
+  # Turn right (top corner)
+  - pos: [0, 12, 5]
+    yaw: 0.785398   # pi/4
+  - pos: [3, 12, 5]
+    yaw: 1.570796   # pi/2
+  - pos: [6, 12, 5]
+    yaw: 2.356194   # pi/2 + pi/4
+
+  # Straight down (y decreasing on right side)
+  - pos: [6, 11, 5]
+    yaw: 3.141593   # pi
+  - pos: [6, 9, 5]
+    yaw: 3.141593
+  - pos: [6, 7, 5]
+    yaw: 3.141593
+  - pos: [6, 5, 5]
+    yaw: 3.141593
+  - pos: [6, 3, 5]
+    yaw: 3.141593
+  - pos: [6, 1, 5]
+    yaw: 3.141593
+  - pos: [6, -1, 5]
+    yaw: 3.141593
+  - pos: [6, -3, 5]
+    yaw: 3.141593
+  - pos: [6, -5, 5]
+    yaw: 3.141593
+  - pos: [6, -7, 5]
+    yaw: 3.141593
+  - pos: [6, -9, 5]
+    yaw: 3.141593
+  - pos: [6, -11, 5]
+    yaw: 3.141593
+
+  # Bottom corner turn
+  - pos: [6, -13, 5]
+    yaw: 3.926991   # pi + pi/4
+  - pos: [3, -13, 5]
+    yaw: 4.712389   # pi + pi/2
+  - pos: [0, -13, 5]
+    yaw: 5.497787   # 2*pi - pi/4
+
+  # Back up (y increasing on left side)
+  - pos: [0, -11, 5]
+    yaw: 0.0
+  - pos: [0, -9, 5]
+    yaw: 0.0
+  - pos: [0, -7, 5]
+    yaw: 0.0
+  - pos: [0, -5, 5]
+    yaw: 0.0
+  - pos: [0, -3, 5]
+    yaw: 0.0
+  - pos: [0, -1, 5]
+    yaw: 0.0
+  - pos: [0, 0, 0.2]
+    yaw: 0.0

@@ -3,6 +3,8 @@
 #include <nav_msgs/msg/path.hpp>
 #include <Eigen/Core>
 #include <Eigen/Geometry>
+#include <yaml-cpp/yaml.h>
+#include <ament_index_cpp/get_package_share_directory.hpp>
 
 #include "common/stop_watch.hpp"
 #include "smip_uav/action/flight_path.hpp"
@@ -25,6 +27,9 @@ private:
     int timer_tick_ms_{50};
     bool sent_{false};
     void send_once();
+
+    std::string path_config_{"forklift.yaml"};
+    // std::string path_config_{"warehouse.yaml"};
 
     geometry_msgs::msg::Quaternion yaw2quat(float yaw) {
         geometry_msgs::msg::Quaternion q;
@@ -66,37 +71,17 @@ void TestFlight::send_once() {
         return ps;
     };
 
-    path.poses.push_back(make_pose(0, 0, 5, 0));
-    path.poses.push_back(make_pose(0, 1, 5, 0));
-    path.poses.push_back(make_pose(0, 2, 5, 0));
-    path.poses.push_back(make_pose(0, 3, 5, 0));
-    path.poses.push_back(make_pose(0, 4, 5, 0));
-    path.poses.push_back(make_pose(0, 5, 5, 0));
-    path.poses.push_back(make_pose(0, 6, 5, 0));
-    path.poses.push_back(make_pose(0, 7, 5, 0));
-    path.poses.push_back(make_pose(0, 8, 5, 0));
-    path.poses.push_back(make_pose(0, 9, 5, 0));
-    path.poses.push_back(make_pose(0, 10, 5, 0));
-    
-    path.poses.push_back(make_pose(0, 11, 5, M_PI_4));
-    path.poses.push_back(make_pose(3, 11, 5, M_PI_2));
-    path.poses.push_back(make_pose(6, 11, 5, M_PI_2 + M_PI_4));
-    
-    path.poses.push_back(make_pose(6, 11, 5, M_PI));
-    path.poses.push_back(make_pose(6, 10, 5, M_PI));
-    path.poses.push_back(make_pose(6, 9, 5, M_PI));
-    path.poses.push_back(make_pose(6, 8, 5, M_PI));
-    path.poses.push_back(make_pose(6, 7, 5, M_PI));
-    path.poses.push_back(make_pose(6, 6, 5, M_PI));
-    path.poses.push_back(make_pose(6, 5, 5, M_PI));
-    path.poses.push_back(make_pose(6, 4, 5, M_PI));
-    path.poses.push_back(make_pose(6, 3, 5, M_PI));
-    path.poses.push_back(make_pose(6, 2, 5, M_PI));
-    path.poses.push_back(make_pose(6, 1, 5, M_PI));
-    path.poses.push_back(make_pose(6, 0, 5, M_PI));
-
-
-
+    const std::string share_dir = ament_index_cpp::get_package_share_directory("smip_uav");
+    YAML::Node config = YAML::LoadFile(share_dir + "/paths/" + path_config_);
+    const auto& waypoints = config["waypoints"];
+    for (const auto& wp : waypoints) {
+        const auto pos = wp["pos"];
+        float x = pos[0].as<float>();
+        float y = pos[1].as<float>();
+        float z = pos[2].as<float>();
+        float yaw = wp["yaw"].as<float>();
+        path.poses.push_back(make_pose(x,y,z,yaw));
+    }
 
     goal.path = path;
 

@@ -90,8 +90,27 @@ public:
     bool remove(const VoxelKey& key);
 
     // Neighbor access: Calls fn(VoxelKey, Voxel&) for each existing neighboring voxel (nb6 or nb26 adjacencies)
-    void for_each_nb6(const VoxelKey& center, const std::function<void(const VoxelKey&, Voxel&)>& fn);
-    void for_each_nb26(const VoxelKey& center, const std::function<void(const VoxelKey&, Voxel&)>& fn);
+    template<typename Fn>
+    void for_each_nb6(const VoxelKey& c, Fn&& fn) {
+        static constexpr int32_t offsets[6][3] = {
+            {-1,0,0}, {1,0,0}, {0,-1,0}, {0,1,0}, {0,0,-1}, {0,0,1}
+        };
+        for (const auto& o : offsets) {
+            VoxelKey nk{c.x + o[0], c.y + o[1], c.z + o[2]};
+            if (auto* v = get(nk)) fn(nk, *v);
+        }
+    }
+
+    template<typename Fn>
+    void for_each_nb26(const VoxelKey& c, Fn&& fn) {
+        for (int32_t dx = -1; dx <= 1; ++dx)
+            for (int32_t dy = -1; dy <= 1; ++dy)
+                for (int32_t dz = -1; dz <= 1; ++dz) {
+                    if (dx == 0 && dy == 0 && dz == 0) continue;
+                    VoxelKey nk{c.x + dx, c.y + dy, c.z + dz};
+                    if (auto* v = get(nk)) fn(nk, *v);
+                }
+    }
 
     // Iteration 
     iter_v begin() { return voxels_.begin(); }

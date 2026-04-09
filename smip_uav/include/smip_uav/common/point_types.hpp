@@ -100,25 +100,27 @@ struct FrameSurfel {
     uint32_t sid{0};
     Eigen::Vector3f centroid;
     Eigen::Vector3f normal;
-    Eigen::Matrix3f R;
-    Eigen::Vector3f eigenvalues;
-    Eigen::Matrix3f eigenvectors;
+    Eigen::Matrix3f R; // Measurement uncertainty model
+    Eigen::Vector3f eigenvalues; // Geometrical Covariance Eigenvalues
+    Eigen::Matrix3f eigenvectors; //                       Eigenvectors
+    Eigen::Matrix3f C_shape;     // Geometric covariance
     float weight;
     float view_cos_theta{90.0f};
 };
 
 struct MapSurfel {
     uint32_t id;
-    Eigen::Vector3f mu;
-    Eigen::Matrix3f P;
-    Eigen::Matrix3f C_shape;
-    float W_shape{0.0f};
-    Eigen::Vector3f normal_acc;
-    float normal_w;
+    Eigen::Vector3f mu; // position mean
+    Eigen::Matrix3f P; // surfel centroid uncertainty covariance
+
+    Eigen::Matrix3f C_shape; // geometric shape around mu
+    float W_shape{0.0f}; // accumulated weight
+
     uint32_t obs_count{0};
     int64_t last_seen{0};
 
-    Eigen::Vector3f normal() const { return normal_acc.normalized(); }
+    Eigen::Vector3f normal{Eigen::Vector3f::Zero()}; // cached normal, updated on fuse/create
+
     bool is_mature(uint32_t min_obs) const { return obs_count >= min_obs; }
 
     // Planarity / Convergence metric

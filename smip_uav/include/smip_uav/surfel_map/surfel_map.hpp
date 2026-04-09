@@ -22,9 +22,10 @@ public:
         float mahal_gate_sq{11.345f};    // chi² 3-DOF 99%
 
         // Fusion
-        float kappa{20.0f};             // tangential inflation
+        float kappa{5.0f};             // tangential inflation
         float epsilon{1e-4f};           // R_tan regularization
         float cov_floor{1e-5f};         // min eigenvalue of P (optional safety)
+        float process_noise_rate{1e-7f}; // process noise rate to accomodate sligth drift of unobserved surfels
     };
 
     SurfelMap() = default;
@@ -42,12 +43,12 @@ public:
 private:
     // SurfelMap integration
     void integrate(const std::vector<FrameSurfel>& frame_surfels, const Eigen::Isometry3f& pose, int64_t timestamp_ns);
-    MapSurfel* find_association(const FrameSurfel& fs_world);
+    MapSurfel* find_association(const FrameSurfel& fs_w);
 
     // Helpers
     FrameSurfel transform_surfel_to_world(const FrameSurfel& fs_local, const Eigen::Isometry3f& pose) const;
-    MapSurfel create_map_surfel(const FrameSurfel& fs_world, int64_t timestamp_ns);
-    void fuse(MapSurfel& m_surfel, const FrameSurfel& f_surfel, int64_t timestamp_ns);
+    MapSurfel create_map_surfel(const FrameSurfel& fs_w, int64_t timestamp_ns);
+    void fuse(MapSurfel& ms, const FrameSurfel& fs_w, int64_t timestamp_ns);
 
     // Components
     std::unique_ptr<FrameBuilder> builder_;

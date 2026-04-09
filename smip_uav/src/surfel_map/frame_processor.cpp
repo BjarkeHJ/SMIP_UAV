@@ -334,6 +334,7 @@ std::vector<FrameSurfel> FrameProcessor::aggregate() const {
         fs.R = R;
         fs.eigenvalues = evals;
         fs.eigenvectors = evecs;
+        fs.C_shape = C;
         fs.weight = Neff;
         fs.view_cos_theta = -normal.dot(centroid.normalized());
 

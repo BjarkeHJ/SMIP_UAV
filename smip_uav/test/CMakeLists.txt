@@ -10,12 +10,19 @@ ament_target_dependencies(
     rclcpp
     rclcpp_action
     nav_msgs
+    ament_index_cpp
 )
 
 rosidl_get_typesupport_target(cpp_typesupport_target_test ${PROJECT_NAME} "rosidl_typesupport_cpp")
-target_link_libraries(${TEST_EXEC} ${cpp_typesupport_target_test} Eigen3::Eigen)
+target_link_libraries(${TEST_EXEC} ${cpp_typesupport_target_test} Eigen3::Eigen yaml-cpp)
+
+install(
+    DIRECTORY test/paths/
+    DESTINATION share/${PROJECT_NAME}/paths
+)
 
 install(
     TARGETS ${TEST_EXEC}
     DESTINATION lib/${PROJECT_NAME}
 )
+

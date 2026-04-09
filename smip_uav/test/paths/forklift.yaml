@@ -1,0 +1,39 @@
+
+waypoints:
+  # Start at UAV home
+  - pos: [0.0, 0.0, 1]
+    yaw: 1.17   # atan2(4.43-0, -0.5-0) ≈ 1.17 rad
+
+  # Move to entry point on circle
+  - pos: [-0.5, 4.43, 1]
+    yaw: 1.17
+
+  # Circular orbit around (2.5,0), radius 5, 16 points
+  - pos: [-0.5, 4.43, 1]
+    yaw: -1.152  # facing center
+  - pos: [0.0, 5.0, 1]
+    yaw: -1.107
+  - pos: [1.0, 5.0, 1]
+    yaw: -1.249
+  - pos: [2.5, 5.0, 1]
+    yaw: -1.571
+  - pos: [4.0, 4.33, 1]
+    yaw: -1.963
+  - pos: [5.0, 2.5, 1]
+    yaw: 3.142
+  - pos: [5.0, 0.5, 1]
+    yaw: 2.356
+  - pos: [4.0, -1.33, 1]
+    yaw: 2.034
+  - pos: [2.5, -2.5, 1]
+    yaw: 1.571
+  - pos: [1.0, -4.0, 1]
+    yaw: 1.178
+  - pos: [0.0, -5.0, 1]
+    yaw: 0.785
+  - pos: [-0.5, -4.43, 1]
+    yaw: 0.464
+
+  # Close orbit back to entry point
+  - pos: [-0.5, 4.43, 1]
+    yaw: -1.152

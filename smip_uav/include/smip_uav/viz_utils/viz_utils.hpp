@@ -217,7 +217,7 @@ inline visualization_msgs::msg::MarkerArray map_surfels_to_markers(
         Eigen::Quaternionf q(evecs);
         q.normalize();
 
-        Eigen::Vector3f n = s->normal();
+        Eigen::Vector3f n = s->normal;
 
         visualization_msgs::msg::Marker m;
         m.header.frame_id = frame_id;
