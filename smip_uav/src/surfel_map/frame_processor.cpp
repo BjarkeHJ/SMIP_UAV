@@ -15,7 +15,6 @@ std::vector<FrameSurfel> FrameProcessor::process(const Frame& cur_frame) {
     distances_.assign(N, std::numeric_limits<float>::max());
 
     init_seeds(cur_frame);
-    std::cout << "Number of seeds: " << seeds_.size() << std::endl;
 
     // Run wavefront-based pixel clustering
     assign_pixels(cur_frame);
@@ -23,7 +22,6 @@ std::vector<FrameSurfel> FrameProcessor::process(const Frame& cur_frame) {
 
     // Extract resulting Surfel statistics from clusters
     std::vector<FrameSurfel> result = aggregate();
-    std::cout << "Surfels: " << result.size() << std::endl;
     return result;
 }
 
@@ -327,8 +325,7 @@ std::vector<FrameSurfel> FrameProcessor::aggregate() const {
         const float Neff = a.sum_w;
         const float r = centroid.norm();
         const float sigma_r = alpha * r * r;
-
-        Eigen::Matrix3f R = C / Neff + (sigma_r * sigma_r) * (normal * normal.transpose());
+        const Eigen::Matrix3f R = C / Neff + (sigma_r * sigma_r) * (normal * normal.transpose());
 
         FrameSurfel fs;
         fs.sid = next_surfel_id_++;

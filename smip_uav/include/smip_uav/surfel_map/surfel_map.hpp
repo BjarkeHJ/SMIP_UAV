@@ -1,85 +1,75 @@
-// #ifndef SURFEL_MAP_HPP_
-// #define SURFEL_MAP_HPP_
+#ifndef SURFEL_MAP_HPP_
+#define SURFEL_MAP_HPP_
 
-// #include "surfel_map/voxel_grid.hpp"
+#include <iostream>
+#include <memory>
+#include "surfel_map/frame_builder.hpp"
+#include "surfel_map/frame_processor.hpp"
+#include "surfel_map/voxel_grid.hpp"
 
-// namespace smip_uav {
+namespace smip_uav {
 
-// class SurfelMap {
-// public:
-//     // Config Struct
-//     struct Config {
-//         VoxelGrid::Config grid_config{};
+class SurfelMap {
+public:
+    struct Config {
+        // ENTIRE CONFIG - Will branch out
+        FrameBuilder::Config builder_config;
+        FrameProcessor::Config processor_config;
+        VoxelGrid::Config grid_config;
 
-//         // Association
-//         float assoc_normal_cos_mature{0.94}; // 0.94 ~20deg
-//         float assoc_normal_cos_tentative{0.5}; //0.5 ~40deg
-//         float assoc_point_to_plane_max{0.05}; // meters
-        
-//         // Lifecycle
-//         size_t surfel_min_points{25};
-//         size_t surfel_max_points{1000};
-        
-//         // Creation
-//         float creation_min_normal_separaton_cos{0.85f}; // 0.85 ~32deg
-        
-//         // Maintenance
-//         size_t maintanence_interval_N{10};
-//         float merge_normal_cos{0.90};
-//         float merge_point_to_plane_max{0.1f};
-//         float boundary_margin_ratio{0.2f};
-//         float tentative_timeout_sec{2.0f};
-//         float min_planarity{0.15f};
-//     };
+        // Association
+        float normal_gate_cos{0.866f};   // cos(30°)
+        float mahal_gate_sq{11.345f};    // chi² 3-DOF 99%
 
-//     SurfelMap();
-//     explicit SurfelMap(const Config& cfg);
+        // Fusion
+        float kappa{20.0f};             // tangential inflation
+        float epsilon{1e-4f};           // R_tan regularization
+        float cov_floor{1e-5f};         // min eigenvalue of P (optional safety)
+    };
 
-//     void integrate_frame(const Frame& frame);
+    SurfelMap() = default;
+    explicit SurfelMap(const Config& cfg);
 
-//     // Finalized and maintained map (not in fragile state): What is open to the "public"
-//     bool has_map() const { return has_public_; }
-//     const VoxelGrid& map() const { return grid_public_; }
-//     std::vector<const Surfel*> surfels() const;
+    // Update SurfelMap with incoming Pointcloud + Pose (Option to retrieve surfels extracted from this frame)
+    void update(const std::vector<PointXYZ>& scan, const Eigen::Isometry3f& pose, int64_t timestamp_ns, std::vector<FrameSurfel>* frame_surfels_out = nullptr);
 
-//     size_t frame_count() const { return frame_count_; }
-//     size_t working_voxel_count() const { return grid_.size(); }
-//     size_t working_surfel_count() const { return grid_public_.total_surfel_count(); }
-
-// private:
-//     // Per-Point integration
-//     void associate_and_fuse(const PointNormal& pn, const Eigen::Vector3f& view_dir, int64_t timestamp);
-//     Surfel* find_best_match(Voxel& voxel, const PointNormal& pn);
-//     void handle_new_surface(Voxel& voxel, const PointNormal& pn, const Eigen::Vector3f& view_dir, const VoxelKey& key, int64_t timestamp);
-
-//     // Maintenance
-//     void run_maintenance(int64_t timestamp);
-//     void recompute_dirty(Voxel& voxel);
-//     void merge_similar(Voxel& voxel);
-//     void merge_boundary_surfels(const VoxelKey& key, Voxel& voxel);
-//     void evict_stale(Voxel& voxel, int64_t timestamp);
-//     void evict_low_quality(Voxel& voxel);
-
-//     void update_public(); // update public map representation
-
-//     // Helpers
-//     bool merge_ok(const Surfel& a, const Eigen::Vector3f& pos_a_world, const Surfel& b, const Eigen::Vector3f& pos_b_world) const;
-//     bool merge_ok_same_voxel(const Surfel& a, const Surfel& b, const VoxelKey& key) const;
-//     bool try_free_slot(Voxel& voxel, const VoxelKey& key, int64_t timestamp);
-
-//     // State
-//     VoxelGrid grid_;
-//     VoxelGrid grid_public_;
-//     bool has_public_{false};
-//     Config config_;
-//     size_t frame_count_{0};
-
-//     // Misc
-//     int64_t tentative_timeout_ns_{0};
-// };
+    // Access
+    const std::vector<MapSurfel*>& get_all_surfels();
+    size_t surfel_count() const { return grid_->total_surfel_count(); }
+    const Frame& frame() const { return frame_; }
 
 
-// } // smip_uav
+private:
+    // SurfelMap integration
+    void integrate(const std::vector<FrameSurfel>& frame_surfels, const Eigen::Isometry3f& pose, int64_t timestamp_ns);
+    MapSurfel* find_association(const FrameSurfel& fs_world);
+
+    // Helpers
+    FrameSurfel transform_surfel_to_world(const FrameSurfel& fs_local, const Eigen::Isometry3f& pose) const;
+    MapSurfel create_map_surfel(const FrameSurfel& fs_world, int64_t timestamp_ns);
+    void fuse(MapSurfel& m_surfel, const FrameSurfel& f_surfel, int64_t timestamp_ns);
+
+    // Components
+    std::unique_ptr<FrameBuilder> builder_;
+    std::unique_ptr<FrameProcessor> processor_;
+    std::unique_ptr<VoxelGrid> grid_;
+
+    // Buffer
+    Frame frame_;
+    std::vector<MapSurfel*> surfel_cache_;
+    bool cache_dirty_{true};
+
+    // Config
+    Config cfg_;
+
+    //
+    static constexpr int32_t INVALID_SURFEL_ID{0};
+    mutable int32_t next_id_{1}; 
+
+};
 
 
-// #endif
+} // smip_uav
+
+
+#endif

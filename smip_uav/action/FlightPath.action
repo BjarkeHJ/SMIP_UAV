@@ -1,0 +1,16 @@
+# Goal
+nav_msgs/Path path
+uint64 id
+float32 pos_tol
+float32 yaw_tol
+float32 v_max
+---
+# Result
+bool succes
+string message                              # Info ("Completed", "Aborted: collision risk")
+uint32 final_idx                             # Last reached waypoint
+---
+# Feedback
+uint32 active_idx                            # Currently tracked waypoint
+geometry_msgs/PoseStamped current_pose
+float32 dist_to_goal

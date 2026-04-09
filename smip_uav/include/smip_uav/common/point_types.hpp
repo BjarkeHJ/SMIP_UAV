@@ -109,17 +109,24 @@ struct FrameSurfel {
 
 struct MapSurfel {
     uint32_t id;
-    Eigen::Vector3f centroid;
-    Eigen::Vector3f P;
+    Eigen::Vector3f mu;
+    Eigen::Matrix3f P;
+    Eigen::Matrix3f C_shape;
+    float W_shape{0.0f};
     Eigen::Vector3f normal_acc;
     float normal_w;
-    Eigen::Vector3f eigenvalues;
-    Eigen::Matrix3f eigenvectors;
     uint32_t obs_count{0};
     int64_t last_seen{0};
 
     Eigen::Vector3f normal() const { return normal_acc.normalized(); }
     bool is_mature(uint32_t min_obs) const { return obs_count >= min_obs; }
+
+    // Planarity / Convergence metric
+    float planarity() const {
+        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(P);
+        const auto& ev = eig.eigenvalues();
+        return 1.0f - ev(0) / (ev(1) + 1e-8f);
+    }
 };
 
 

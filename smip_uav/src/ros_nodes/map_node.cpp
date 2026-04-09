@@ -13,15 +13,16 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
     weight_ch_ = viz_channels::frame_weight(*viz_, tof_frame_, "tof_weight", rclcpp::SensorDataQoS());
     edge_ch_ = viz_channels::frame_edge(*viz_, tof_frame_, "tof_edge", rclcpp::SensorDataQoS());
     surfel_ch_ = viz_channels::surfels(*viz_, tof_frame_, "tof_surfel", rclcpp::SensorDataQoS());
+    map_ch_ = viz_channels::map_surfels(*viz_, global_frame_, "map_surfel", rclcpp::SensorDataQoS());
 
     // surfel_ch_ = viz_channels::surfels_normal(*viz_, "odom", "surfel_map_markers", rclcpp::SensorDataQoS());
 
     // Scan processing
-    frame_builder_ = std::make_unique<FrameBuilder>(FrameBuilder::Config{});
-    frame_processor_ = std::make_unique<FrameProcessor>(FrameProcessor::Config{});
+    // frame_builder_ = std::make_unique<FrameBuilder>(FrameBuilder::Config{});
+    // frame_processor_ = std::make_unique<FrameProcessor>(FrameProcessor::Config{});
 
     // SurfelMap
-    // smap_ = std::make_unique<SurfelMap>(SurfelMap::Config{});
+    smap_ = std::make_unique<SurfelMap>(SurfelMap::Config{});
 
     // ROS2 TF
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
@@ -92,21 +93,39 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
         }
     }
 
-    // run preprocess
-    GroundPlane gnd;
-    gnd.normal_z = tf_.rotation().transpose() * Eigen::Vector3f::UnitZ();
-    gnd.offset_z = -gnd.normal_z.dot(tf_.inverse().translation());
+    // Update SurfelMap with points...
+    std::vector<FrameSurfel> fsurfels;
     clock_.tic();
-    current_frame_ = frame_builder_->process(pts_, timestamp_ns, &gnd);
-    double time = clock_.toc();
-    std::cout << "Frame Build with: " << current_frame_.valid_count() << " points in " << time << " ms." << std::endl;
+    smap_->update(pts_, tf_, timestamp_ns, &fsurfels);
+    const double t_update = clock_.toc();
+    current_frame_ = smap_->frame();
 
-    current_frame_.tf_pose = tf_; // Set transform (maybe change the way this is done...)
+    std::vector<MapSurfel*> msurfels = smap_->get_all_surfels();
+    RCLCPP_INFO(this->get_logger(), "SurfelMap Update Time: %f - Map Size: %ld", t_update, msurfels.size());
 
-    clock_.tic();
-    auto v_surfels = frame_processor_->process(current_frame_);
-    double fproc_t = clock_.toc();
-    std::cout << "Frame processed in: " << fproc_t << " ms." << std::endl;
+    // Publish visualization
+    depth_ch_.publish(current_frame_, this->get_clock()->now());
+    normal_ch_.publish(current_frame_, this->get_clock()->now());
+    weight_ch_.publish(current_frame_, this->get_clock()->now());
+    edge_ch_.publish(current_frame_, this->get_clock()->now());
+    surfel_ch_.publish(fsurfels, t_msg);
+    map_ch_.publish(msurfels, this->get_clock()->now());
+
+    // // run preprocess
+    // GroundPlane gnd;
+    // gnd.normal_z = tf_.rotation().transpose() * Eigen::Vector3f::UnitZ();
+    // gnd.offset_z = -gnd.normal_z.dot(tf_.inverse().translation());
+    // clock_.tic();
+    // current_frame_ = frame_builder_->process(pts_, timestamp_ns, &gnd);
+    // double time = clock_.toc();
+    // std::cout << "Frame Build with: " << current_frame_.valid_count() << " points in " << time << " ms." << std::endl;
+
+    // current_frame_.tf_pose = tf_; // Set transform (maybe change the way this is done...)
+
+    // clock_.tic();
+    // auto v_surfels = frame_processor_->process(current_frame_);
+    // double fproc_t = clock_.toc();
+    // std::cout << "Frame processed in: " << fproc_t << " ms." << std::endl;
 
     // clock_.tic();    
     // smap_->integrate_frame(current_frame_);
@@ -146,12 +165,7 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     //     surfel_ch_.publish(delta, this->get_clock()->now());
     // }
 
-    // Publish visualization
-    depth_ch_.publish(current_frame_, this->get_clock()->now());
-    normal_ch_.publish(current_frame_, this->get_clock()->now());
-    weight_ch_.publish(current_frame_, this->get_clock()->now());
-    edge_ch_.publish(current_frame_, this->get_clock()->now());
-    surfel_ch_.publish(v_surfels, t_msg);
+    
 }
 
 

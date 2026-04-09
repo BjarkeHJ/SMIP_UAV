@@ -9,14 +9,22 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(SMIP_EXEC smip_uav_node)
+set(TRAJ_EXEC trajectory_node)
 
 find_package(ament_cmake REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
+
 find_package(tf2_ros REQUIRED)
 find_package(tf2_eigen REQUIRED)
+
+find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
+
 find_package(Eigen3 REQUIRED)
 
 include_directories(
@@ -24,6 +32,14 @@ include_directories(
     ${EIGEN3_INCLUDE_DIRS}
 )
 
+# ACTION: FlightPath
+rosidl_generate_interfaces(${PROJECT_NAME}
+    "action/FlightPath.action"
+    DEPENDENCIES nav_msgs geometry_msgs std_msgs
+)
+ament_export_dependencies(rosidl_default_runtime)
+
+# SurfelMap + Planner
 set(
     DEPS
     rclcpp
@@ -33,32 +49,55 @@ set(
     geometry_msgs
     visualization_msgs
 )
-
 add_executable(
     ${SMIP_EXEC}
     src/smip_exec.cpp
     src/ros_nodes/map_node.cpp
     src/surfel_map/frame_builder.cpp
     src/surfel_map/frame_processor.cpp
-    # src/surfel_map/voxel_grid.cpp
-    # src/surfel_map/surfel.cpp
-    # src/surfel_map/surfel_map.cpp
+    src/surfel_map/voxel_grid.cpp
+    src/surfel_map/surfel_map.cpp
 )
-
 ament_target_dependencies(
   ${SMIP_EXEC}
   ${DEPS}
 )
-
 target_link_libraries(
     ${SMIP_EXEC}
     Eigen3::Eigen
 )
 
+# TrajectoryNode: Action Server for waypoint trajectory interpolation
+add_executable(
+    ${TRAJ_EXEC}
+    src/ros_nodes/trajectory_node.cpp
+)
+ament_target_dependencies(
+    ${TRAJ_EXEC}
+    rclcpp
+    rclcpp_action
+    geometry_msgs
+    nav_msgs
+)
+target_link_libraries(
+    ${TRAJ_EXEC}
+    Eigen3::Eigen
+)
+
+# ACTION: Link generated action interfaces to the executable
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
+target_link_libraries(${TRAJ_EXEC} ${cpp_typesupport_target})
+
 install(
-  TARGETS ${SMIP_EXEC}
+  TARGETS ${SMIP_EXEC} ${TRAJ_EXEC}
   DESTINATION lib/${PROJECT_NAME}
 )
+
+# OPTIONAL: Build test/
+option(BUILD_TESTS "Build test executables" ON)
+if(BUILD_TESTS)
+    include(test/CMakeLists.txt)
+endif()
 
 ament_package()
 

@@ -169,21 +169,90 @@ inline visualization_msgs::msg::MarkerArray surfel_to_markers(
 
         // Diameter = 2 * scale_factor * sqrt(eigenvalue) per axis
         // Eigenvalues sorted ascending: col(0)=smallest=normal dir
-        m.scale.x = 1.0f * scale_factor * std::sqrt(ev(0) + 1e-6f);  // normal direction (thin)
-        m.scale.y = 1.0f * scale_factor * std::sqrt(ev(1) + 1e-6f);  // tangent 1
-        m.scale.z = 1.0f * scale_factor * std::sqrt(ev(2) + 1e-6f);  // tangent 2
+        m.scale.x = scale_factor * std::sqrt(ev(0) + 1e-6f);  // normal direction (thin)
+        m.scale.y = scale_factor * std::sqrt(ev(1) + 1e-6f);  // tangent 1
+        m.scale.z = scale_factor * std::sqrt(ev(2) + 1e-6f);  // tangent 2
 
         // Color by weight
-        // m.color.r = std::abs(n.x());
-        // m.color.g = std::abs(n.y());
-        // m.color.b = std::abs(n.z());
-
-        m.color.r = s.view_cos_theta;
-        m.color.g = 0.0f;
-        m.color.b = 0.0f;
+        m.color.r = std::abs(n.x());
+        m.color.g = std::abs(n.y());
+        m.color.b = std::abs(n.z());
         m.color.a = 0.6f;
 
+        // m.color.r = s.view_cos_theta;
+        // m.color.g = 0.0f;
+        // m.color.b = 0.0f;
+        // m.color.a = 0.6f;
+
         m.lifetime = rclcpp::Duration::from_seconds(0.2);
+
+        ma.markers.push_back(m);
+    }
+
+    return ma;
+}
+
+inline visualization_msgs::msg::MarkerArray map_surfels_to_markers(
+    const std::vector<MapSurfel*>& surfels,
+    const rclcpp::Time& stamp,
+    const std::string& frame_id,
+    float scale_factor = 3.0f) {
+
+    visualization_msgs::msg::MarkerArray ma;
+    ma.markers.reserve(surfels.size());
+
+    for (size_t i = 0; i < surfels.size(); ++i) {
+        const auto* s = surfels[i];
+        if (!s || !s->mu.allFinite()) continue;
+
+        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(s->C_shape);
+        if (eig.info() != Eigen::Success) continue;
+        const Eigen::Vector3f evals = eig.eigenvalues().cwiseMax(1e-8f);
+        Eigen::Matrix3f evecs = eig.eigenvectors();
+
+        if (evecs.determinant() < 0.0f) {
+            evecs.col(0) = -evecs.col(0);
+        }
+
+        Eigen::Quaternionf q(evecs);
+        q.normalize();
+
+        Eigen::Vector3f n = s->normal();
+
+        visualization_msgs::msg::Marker m;
+        m.header.frame_id = frame_id;
+        m.header.stamp = stamp;
+        m.ns = "surfels";
+        m.id = static_cast<int>(i);
+        m.type = visualization_msgs::msg::Marker::SPHERE;
+        m.action = visualization_msgs::msg::Marker::ADD;
+
+        m.pose.position.x = s->mu.x();
+        m.pose.position.y = s->mu.y();
+        m.pose.position.z = s->mu.z();
+
+        m.pose.orientation.x = q.x();
+        m.pose.orientation.y = q.y();
+        m.pose.orientation.z = q.z();
+        m.pose.orientation.w = q.w();
+
+        // Eigenvalues sorted ascending: col(0)=smallest=normal dir
+        m.scale.x = scale_factor * std::sqrt(evals(0) + 1e-6f);  // normal direction (thin)
+        m.scale.y = scale_factor * std::sqrt(evals(1) + 1e-6f);  // tangent 1
+        m.scale.z = scale_factor * std::sqrt(evals(2) + 1e-6f);  // tangent 2
+
+        // Color by weight
+        m.color.r = std::abs(n.x());
+        m.color.g = std::abs(n.y());
+        m.color.b = std::abs(n.z());
+        m.color.a = 0.6f;
+
+        // m.color.r = s.view_cos_theta;
+        // m.color.g = 0.0f;
+        // m.color.b = 0.0f;
+        // m.color.a = 0.6f;
+
+        m.lifetime = rclcpp::Duration::from_seconds(0.00);
 
         ma.markers.push_back(m);
     }
@@ -275,6 +344,18 @@ inline VizChannel<std::vector<FrameSurfel>, visualization_msgs::msg::MarkerArray
     return viz.create<std::vector<FrameSurfel>, visualization_msgs::msg::MarkerArray>(subtopic, frame_id, qos,
         [](const std::vector<FrameSurfel>& S, const rclcpp::Time& stamp, const std::string& fid) {
             return viz_convs::surfel_to_markers(S, stamp, fid);
+        });
+}
+
+inline VizChannel<std::vector<MapSurfel*>, visualization_msgs::msg::MarkerArray> map_surfels(
+    Visualizer& viz,
+    const std::string& frame_id,
+    const std::string& subtopic,
+    rclcpp::QoS qos
+) {
+    return viz.create<std::vector<MapSurfel*>, visualization_msgs::msg::MarkerArray>(subtopic, frame_id, qos,
+        [](const std::vector<MapSurfel*>& S, const rclcpp::Time& stamp, const std::string& fid) {
+            return viz_convs::map_surfels_to_markers(S, stamp, fid);
         });
 }
 
