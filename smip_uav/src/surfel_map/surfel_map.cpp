@@ -38,14 +38,10 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
         MapSurfel* match = find_association(fs_w);
 
         if (match) {
-            const double dt_s = (timestamp_ns - match->last_seen) * 1e-9;
-            if (dt_s > 0.0) {
-                match->P.diagonal().array() += cfg_.process_noise_rate * dt_s;
-            }
-            
             fuse(*match, fs_w, timestamp_ns);
         }
         else {
+            // Build enforced belief before creating a new surfel??
             MapSurfel ms = create_map_surfel(fs_w, timestamp_ns);
             const VoxelKey key = grid_->to_key(ms.mu);
             Voxel& voxel = grid_->get_or_create(key);
@@ -73,7 +69,7 @@ MapSurfel* SurfelMap::find_association(const FrameSurfel& fs_w) {
             // Mahalanobis distance gating with geometric covariance
             const Eigen::Vector3f d = fs_w.centroid - ms.mu;
             const Eigen::Matrix3f S = ms.C_shape + ms.P + fs_w.R; // C_shape + P + R
-            const float d2 = d.dot(S.ldlt().solve(d)); // faster than dS^(-1)d^T
+            const float d2 = d.dot(S.ldlt().solve(d)); // faster than computing inverse
 
             if (d2 < best_d2) {
                 best_d2 = d2;
@@ -96,6 +92,12 @@ MapSurfel* SurfelMap::find_association(const FrameSurfel& fs_w) {
 }
 
 void SurfelMap::fuse(MapSurfel& ms, const FrameSurfel& fs_w, int64_t timestamp_ns) {
+    // Add temporal process noise
+    const double dt_s = (timestamp_ns - ms.last_seen) * 1e-9;
+    if (dt_s > 0.0) {
+        ms.P.diagonal().array() += cfg_.process_noise_rate * dt_s;
+    }
+
     // Fuse a new (transformed) frame surfel into existing/associated map surfel
     const Eigen::Vector3f& n = fs_w.normal;
     ms.normal = n;
@@ -117,7 +119,7 @@ void SurfelMap::fuse(MapSurfel& ms, const FrameSurfel& fs_w, int64_t timestamp_n
 
     // Shape update with parallel-axis correction
     const Eigen::Vector3f delta = fs_w.centroid - ms.mu; // after position update
-    const float w = fs_w.weight;
+    const float w = fs_w.weight * fs_w.view_cos_theta;
     const float W_new = ms.W_shape + w;
     ms.C_shape = (ms.W_shape * ms.C_shape + w * (fs_w.C_shape + delta * delta.transpose())) / W_new;
     ms.W_shape = W_new;
@@ -153,7 +155,7 @@ MapSurfel SurfelMap::create_map_surfel(const FrameSurfel& fs_w, int64_t timestam
     MapSurfel ms;
     ms.id = next_id_++;
     ms.mu = fs_w.centroid;
-    ms.P = fs_w.R;
+    ms.P = fs_w.R * 1000.0f;
     ms.C_shape = fs_w.C_shape;
     ms.normal = fs_w.normal;
     ms.W_shape = fs_w.weight;

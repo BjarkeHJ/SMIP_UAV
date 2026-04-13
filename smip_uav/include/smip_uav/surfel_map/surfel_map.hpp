@@ -18,13 +18,12 @@ public:
         VoxelGrid::Config grid_config;
 
         // Association
-        float normal_gate_cos{0.866f};   // cos(30°)
+        // float normal_gate_cos{0.866f};   // cos(30°)
+        float normal_gate_cos{0.9659f};   // cos(15)
         float mahal_gate_sq{11.345f};    // chi² 3-DOF 99%
 
         // Fusion
         float kappa{5.0f};             // tangential inflation
-        float epsilon{1e-4f};           // R_tan regularization
-        float cov_floor{1e-5f};         // min eigenvalue of P (optional safety)
         float process_noise_rate{1e-7f}; // process noise rate to accomodate sligth drift of unobserved surfels
     };
 
@@ -39,9 +38,8 @@ public:
     size_t surfel_count() const { return grid_->total_surfel_count(); }
     const Frame& frame() const { return frame_; }
 
-
 private:
-    // SurfelMap integration
+    // Integration
     void integrate(const std::vector<FrameSurfel>& frame_surfels, const Eigen::Isometry3f& pose, int64_t timestamp_ns);
     MapSurfel* find_association(const FrameSurfel& fs_w);
 
@@ -63,7 +61,7 @@ private:
     // Config
     Config cfg_;
 
-    //
+    // id 
     static constexpr int32_t INVALID_SURFEL_ID{0};
     mutable int32_t next_id_{1}; 
 

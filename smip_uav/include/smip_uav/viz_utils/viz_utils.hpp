@@ -137,7 +137,6 @@ inline visualization_msgs::msg::MarkerArray surfel_to_markers(
         const auto& s = surfels[i];
 
         const auto c = s.centroid;
-        const auto n = s.normal;
         const auto ev = s.eigenvalues;
         auto evecs = s.eigenvectors;
 
@@ -173,16 +172,17 @@ inline visualization_msgs::msg::MarkerArray surfel_to_markers(
         m.scale.y = scale_factor * std::sqrt(ev(1) + 1e-6f);  // tangent 1
         m.scale.z = scale_factor * std::sqrt(ev(2) + 1e-6f);  // tangent 2
 
-        // Color by weight
-        m.color.r = std::abs(n.x());
-        m.color.g = std::abs(n.y());
-        m.color.b = std::abs(n.z());
-        m.color.a = 0.6f;
-
-        // m.color.r = s.view_cos_theta;
-        // m.color.g = 0.0f;
-        // m.color.b = 0.0f;
+        // Color by normal
+        // const auto n = s.normal;
+        // m.color.r = std::abs(n.x());
+        // m.color.g = std::abs(n.y());
+        // m.color.b = std::abs(n.z());
         // m.color.a = 0.6f;
+
+        m.color.r = 0.0f;
+        m.color.g = s.view_cos_theta;
+        m.color.b = 0.0f;
+        m.color.a = 0.6f;
 
         m.lifetime = rclcpp::Duration::from_seconds(0.2);
 
@@ -196,7 +196,7 @@ inline visualization_msgs::msg::MarkerArray map_surfels_to_markers(
     const std::vector<MapSurfel*>& surfels,
     const rclcpp::Time& stamp,
     const std::string& frame_id,
-    float scale_factor = 3.0f) {
+    float scale_factor = 2.0f) {
 
     visualization_msgs::msg::MarkerArray ma;
     ma.markers.reserve(surfels.size());
@@ -204,6 +204,8 @@ inline visualization_msgs::msg::MarkerArray map_surfels_to_markers(
     for (size_t i = 0; i < surfels.size(); ++i) {
         const auto* s = surfels[i];
         if (!s || !s->mu.allFinite()) continue;
+
+        // if (s->planarity() < 0.5f) continue;
 
         Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(s->C_shape);
         if (eig.info() != Eigen::Success) continue;
@@ -216,8 +218,6 @@ inline visualization_msgs::msg::MarkerArray map_surfels_to_markers(
 
         Eigen::Quaternionf q(evecs);
         q.normalize();
-
-        Eigen::Vector3f n = s->normal;
 
         visualization_msgs::msg::Marker m;
         m.header.frame_id = frame_id;
@@ -241,13 +241,14 @@ inline visualization_msgs::msg::MarkerArray map_surfels_to_markers(
         m.scale.y = scale_factor * std::sqrt(evals(1) + 1e-6f);  // tangent 1
         m.scale.z = scale_factor * std::sqrt(evals(2) + 1e-6f);  // tangent 2
 
-        // Color by weight
-        m.color.r = std::abs(n.x());
-        m.color.g = std::abs(n.y());
-        m.color.b = std::abs(n.z());
+        // Color by normal
+        Eigen::Vector3f n = s->normal;
+        m.color.r = 0.5f * (n.x() + 1.0f);
+        m.color.g = 0.5f * (n.y() + 1.0f);
+        m.color.b = 0.5f * (n.z() + 1.0f);
         m.color.a = 0.6f;
 
-        // m.color.r = s.view_cos_theta;
+        // m.color.r = s->P.trace();
         // m.color.g = 0.0f;
         // m.color.b = 0.0f;
         // m.color.a = 0.6f;

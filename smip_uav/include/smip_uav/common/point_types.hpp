@@ -123,11 +123,17 @@ struct MapSurfel {
 
     bool is_mature(uint32_t min_obs) const { return obs_count >= min_obs; }
 
-    // Planarity / Convergence metric
     float planarity() const {
-        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(P);
-        const auto& ev = eig.eigenvalues();
-        return 1.0f - ev(0) / (ev(1) + 1e-8f);
+        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(C_shape);
+        const auto& ev = eig.eigenvalues(); // sorted ascending: λ0 ≤ λ1 ≤ λ2
+
+        const float denom = ev(2) + 1e-8f; // normalize by largest eigenvalue
+        return (ev(1) - ev(0)) / denom;    // in [0, 1]: 1 = perfectly planar
+    }
+
+    float convergence() const {
+        const float trace = P.trace() + 1e-8f;
+        return 1.0f - P.eigenvalues().real().minCoeff() / trace;
     }
 };
 

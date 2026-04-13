@@ -10,7 +10,7 @@ public:
     struct Config {
         size_t seed_spacing{6};
         size_t perturb_window{1};
-        size_t min_px{6};
+        size_t min_px{12};
 
         float w_spatial{1.0f};
         float w_normal{1.0f};
