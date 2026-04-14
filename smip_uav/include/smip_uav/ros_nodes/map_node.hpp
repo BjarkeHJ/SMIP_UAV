@@ -59,6 +59,7 @@ private:
     VizChannel<Frame, sensor_msgs::msg::Image> edge_ch_;
     VizChannel<std::vector<FrameSurfel>, visualization_msgs::msg::MarkerArray> surfel_ch_;
     VizChannel<std::vector<MapSurfel*>, visualization_msgs::msg::MarkerArray> map_ch_;
+    VizChannel<SuperpixelImage, sensor_msgs::msg::Image> superpixel_ch_;
 
     // Timing
     StopWatch clock_;

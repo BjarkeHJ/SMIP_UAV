@@ -8,9 +8,9 @@ namespace smip_uav {
 class FrameProcessor {
 public:
     struct Config {
-        size_t seed_spacing{4};
+        size_t seed_spacing{6};
         size_t perturb_window{1};
-        size_t min_px{8};
+        size_t min_px{12};
 
         float w_spatial{1.0f};
         float w_normal{1.0f};
@@ -20,8 +20,11 @@ public:
     
     FrameProcessor() = default;
     explicit FrameProcessor(const Config& cfg);
-    
+
     std::vector<FrameSurfel> process(const Frame& cur_frame);
+
+    // Per-pixel surfel label after the last process() call (-1 = unassigned)
+    const std::vector<int32_t>& labels() const { return labels_; }
 
 private:
     struct Seed {

@@ -10,7 +10,11 @@
 
 // ==== INCLUDE SUPPORTED DATA TYPES (Custom) ====
 #include "common/point_types.hpp"
-// #include "surfel_map/surfel.hpp"
+
+struct SuperpixelImage {
+    std::vector<int32_t> labels;
+    uint32_t W{0}, H{0};
+};
 
 // ==== VISUALIZATION CONVERTERS ====
 namespace viz_convs {
@@ -124,6 +128,53 @@ inline sensor_msgs::msg::Image edge_binary(
     return m;
 }
 
+inline sensor_msgs::msg::Image superpixel_rgb8(
+        const std::vector<int32_t>& labels,
+        uint32_t w, uint32_t h,
+        const rclcpp::Time& stamp,
+        const std::string& frame_id) {
+
+    // Map a label id to a distinct RGB color via golden-ratio hue hash (HSV S=0.8, V=0.9)
+    auto label_to_rgb = [](int32_t label, uint8_t& r, uint8_t& g, uint8_t& b) {
+        if (label < 0) { r = g = b = 0; return; }
+        const float hue = std::fmod(static_cast<float>(label) * 0.61803398875f, 1.0f);
+        const float s = 0.8f, v = 0.9f;
+        const float h6 = hue * 6.0f;
+        const int i = static_cast<int>(h6);
+        const float f = h6 - static_cast<float>(i);
+        const float p = v * (1.0f - s);
+        const float q = v * (1.0f - s * f);
+        const float t = v * (1.0f - s * (1.0f - f));
+        float rf, gf, bf;
+        switch (i % 6) {
+            case 0: rf=v; gf=t; bf=p; break;
+            case 1: rf=q; gf=v; bf=p; break;
+            case 2: rf=p; gf=v; bf=t; break;
+            case 3: rf=p; gf=q; bf=v; break;
+            case 4: rf=t; gf=p; bf=v; break;
+            default: rf=v; gf=p; bf=q; break;
+        }
+        r = static_cast<uint8_t>(rf * 255.0f);
+        g = static_cast<uint8_t>(gf * 255.0f);
+        b = static_cast<uint8_t>(bf * 255.0f);
+    };
+
+    sensor_msgs::msg::Image m;
+    m.header.stamp = stamp;
+    m.header.frame_id = frame_id;
+    m.height = h;
+    m.width  = w;
+    m.encoding = "rgb8";
+    m.is_bigendian = false;
+    m.step = w * 3;
+    m.data.resize(w * h * 3, 0);
+
+    for (size_t i = 0; i < w * h; ++i) {
+        label_to_rgb(labels[i], m.data[3*i], m.data[3*i+1], m.data[3*i+2]);
+    }
+    return m;
+}
+
 inline visualization_msgs::msg::MarkerArray surfel_to_markers(
     const std::vector<FrameSurfel>& surfels,
     const rclcpp::Time& stamp,
@@ -196,7 +247,7 @@ inline visualization_msgs::msg::MarkerArray map_surfels_to_markers(
     const std::vector<MapSurfel*>& surfels,
     const rclcpp::Time& stamp,
     const std::string& frame_id,
-    float scale_factor = 2.0f) {
+    float scale_factor = 3.0f) {
 
     visualization_msgs::msg::MarkerArray ma;
     ma.markers.reserve(surfels.size());
@@ -207,7 +258,7 @@ inline visualization_msgs::msg::MarkerArray map_surfels_to_markers(
 
         // if (s->planarity() < 0.5f) continue;
 
-        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(s->C_shape);
+        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(s->sigma);
         if (eig.info() != Eigen::Success) continue;
         const Eigen::Vector3f evals = eig.eigenvalues().cwiseMax(1e-8f);
         Eigen::Matrix3f evecs = eig.eigenvectors();
@@ -333,6 +384,18 @@ inline VizChannel<Frame, sensor_msgs::msg::Image> frame_edge(
                 static_cast<uint32_t>(f.H),
                 stamp,
                 fid);
+        });
+}
+
+inline VizChannel<SuperpixelImage, sensor_msgs::msg::Image> frame_superpixels(
+        Visualizer& viz,
+        const std::string& frame_id,
+        const std::string& subtopic,
+        rclcpp::QoS qos
+    ) {
+    return viz.create<SuperpixelImage, sensor_msgs::msg::Image>(subtopic, frame_id, qos,
+        [](const SuperpixelImage& sp, const rclcpp::Time& stamp, const std::string& fid) {
+            return viz_convs::superpixel_rgb8(sp.labels, sp.W, sp.H, stamp, fid);
         });
 }
 

@@ -109,32 +109,65 @@ struct FrameSurfel {
 };
 
 struct MapSurfel {
-    uint32_t id;
-    Eigen::Vector3f mu; // position mean
-    Eigen::Matrix3f P; // surfel centroid uncertainty covariance
+    uint32_t id{0};
 
-    Eigen::Matrix3f C_shape; // geometric shape around mu
-    float W_shape{0.0f}; // accumulated weight
+    // Suffcient Statistics (Accumulated)
+    float W{0.0f}; // sum(w_k*r_jk)
+    Eigen::Vector3f S1{Eigen::Vector3f::Zero()};
+    Eigen::Matrix3f S2{Eigen::Matrix3f::Zero()};
 
-    uint32_t obs_count{0};
+    // Reconstructed quantities from  stats
+    Eigen::Vector3f mu{Eigen::Vector3f::Zero()};
+    Eigen::Matrix3f sigma{Eigen::Matrix3f::Identity() * 1e-3f};
+    Eigen::Vector3f normal{Eigen::Vector3f::Zero()};
+
+    // Lifecycle
+    uint32_t obs_count{0}; // incremented once per frame
     int64_t last_seen{0};
 
-    Eigen::Vector3f normal{Eigen::Vector3f::Zero()}; // cached normal, updated on fuse/create
+    // Competitive health
+    float health{1.0f}; // EMA of per-frame capture ratio
+    uint32_t n_eval{0}; // number of frames health was evaluated
 
-    bool is_mature(uint32_t min_obs) const { return obs_count >= min_obs; }
+    // Convergence
+    bool converged{false};
 
-    float planarity() const {
-        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(C_shape);
-        const auto& ev = eig.eigenvalues(); // sorted ascending: λ0 ≤ λ1 ≤ λ2
+    // recompute mu, sigma, normal - return false if W is too small (degenerate)
+    bool reconstruct(float lambda_max = -1.0f) {
+        if (W < 1e-8f) return false;
 
-        const float denom = ev(2) + 1e-8f; // normalize by largest eigenvalue
-        return (ev(1) - ev(0)) / denom;    // in [0, 1]: 1 = perfectly planar
+        mu = S1 / W;
+        sigma = S2 / W - mu * mu.transpose();
+        sigma = 0.5 * (sigma + sigma.transpose()); // force symmetric 
+
+        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(sigma);
+        if (eig.info() != Eigen::Success) return false;
+
+        Eigen::Vector3f ev = eig.eigenvalues().cwiseMax(1e-6f);
+        const Eigen::Matrix3f V = eig.eigenvectors();
+        bool clamped = false;
+        if (lambda_max > 0.0f) {
+            for (int i = 0; i < 3; ++i) {
+                if (ev(i) > lambda_max) {
+                    ev(i) = lambda_max;
+                    clamped = true;
+                }
+            }
+        }
+
+        sigma = V * ev.asDiagonal() * V.transpose();
+        if (clamped) {
+            S2 = W * (sigma + mu * mu.transpose());
+        }
+
+        Eigen::Vector3f n_new = V.col(0);
+        if (normal.squaredNorm() > 0.5f && n_new.dot(normal) < 0.0f) {
+            n_new = -n_new;
+        }
+        normal = n_new;
+        return true;
     }
 
-    float convergence() const {
-        const float trace = P.trace() + 1e-8f;
-        return 1.0f - P.eigenvalues().real().minCoeff() / trace;
-    }
 };
 
 

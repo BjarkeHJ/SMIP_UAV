@@ -14,12 +14,7 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
     edge_ch_ = viz_channels::frame_edge(*viz_, tof_frame_, "tof_edge", rclcpp::SensorDataQoS());
     surfel_ch_ = viz_channels::surfels(*viz_, tof_frame_, "tof_surfel", rclcpp::SensorDataQoS());
     map_ch_ = viz_channels::map_surfels(*viz_, global_frame_, "map_surfel", rclcpp::SensorDataQoS());
-
-    // surfel_ch_ = viz_channels::surfels_normal(*viz_, "odom", "surfel_map_markers", rclcpp::SensorDataQoS());
-
-    // Scan processing
-    // frame_builder_ = std::make_unique<FrameBuilder>(FrameBuilder::Config{});
-    // frame_processor_ = std::make_unique<FrameProcessor>(FrameProcessor::Config{});
+    superpixel_ch_ = viz_channels::frame_superpixels(*viz_, tof_frame_, "tof_superpixels", rclcpp::SensorDataQoS());
 
     // SurfelMap
     smap_ = std::make_unique<SurfelMap>(SurfelMap::Config{});
@@ -110,6 +105,9 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     edge_ch_.publish(current_frame_, this->get_clock()->now());
     surfel_ch_.publish(fsurfels, t_msg);
     map_ch_.publish(msurfels, this->get_clock()->now());
+    superpixel_ch_.publish(SuperpixelImage{smap_->frame_labels(),
+        static_cast<uint32_t>(current_frame_.W),
+        static_cast<uint32_t>(current_frame_.H)}, t_msg);
 }
 
 
