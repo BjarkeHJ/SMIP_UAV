@@ -12,7 +12,8 @@ SurfelMap::SurfelMap(const Config& cfg) : cfg_(cfg) {
     const float V_voxel = vs * vs * vs;
     log_lambda_new_ = std::log(cfg_.pi_birth) - std::log(V_voxel);
 
-    lambda_max_ = std::pow(cfg_.grid_config.voxel_size * 0.3f, 2);
+    // lambda_max_ = std::pow(cfg_.grid_config.voxel_size * 0.3f, 2); // max eigenvalue (spatial extend) 0.3 * voxel size
+    lambda_max_ = -1.0f;
 }
 
 void SurfelMap::update(const std::vector<PointXYZ>& scan, const Eigen::Isometry3f& pose, int64_t timestamp_ns, std::vector<FrameSurfel>* frame_surfels_out) {
@@ -55,7 +56,7 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
             const float wr = w_k * entry.r;
             acc.delta_W += wr;
             acc.delta_S1 += wr * fs_w.centroid;
-            acc.delta_S2 += wr * (fs_w.centroid * fs_w.centroid.transpose());
+            acc.delta_S2 += wr * (fs_w.centroid * fs_w.centroid.transpose() + fs_w.C_shape);
             acc.available_weight += w_k; // total evidence this component was tested against
         }
 
@@ -66,9 +67,13 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
 
     // M-Step: Apply accumulated deltas, reconstruct params
     for (auto& [ms_ptr, acc] : accums) {
-        ms_ptr->W += acc.delta_W;
-        ms_ptr->S1 += acc.delta_S1;
-        ms_ptr->S2 += acc.delta_S2;
+        const float gamma = 0.99f;
+        ms_ptr->W = gamma * ms_ptr->W + acc.delta_W;
+        ms_ptr->S1 = gamma * ms_ptr->S1 + acc.delta_S1;
+        ms_ptr->S2 = gamma * ms_ptr->S2 + acc.delta_S2;
+        // ms_ptr->W += acc.delta_W;
+        // ms_ptr->S1 += acc.delta_S1;
+        // ms_ptr->S2 += acc.delta_S2;
         ms_ptr->reconstruct(lambda_max_);
         ms_ptr->obs_count++;
         ms_ptr->last_seen = timestamp_ns;
@@ -105,7 +110,19 @@ float SurfelMap::compute_responsibilities(const FrameSurfel& fs_w, std::vector<R
             // hard normal gate
             if (std::abs(fs_w.normal.dot(ms.normal)) < cfg_.normal_gate_cos) continue;
 
-            const Eigen::Matrix3f M = ms.sigma + fs_w.R;
+            // In compute_responsibilities, after extracting ms
+            Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(ms.sigma);
+            Eigen::Vector3f ev = eig.eigenvalues().cwiseMax(1e-6f);
+            const Eigen::Matrix3f V = eig.eigenvectors();
+
+            // Compress tangential directions for gating
+            const float gate_tangential_cap = cfg_.grid_config.voxel_size * 0.15f; // tune this
+            ev(1) = std::min(ev(1), gate_tangential_cap * gate_tangential_cap);
+            ev(2) = std::min(ev(2), gate_tangential_cap * gate_tangential_cap);
+            Eigen::Matrix3f sigma_gate = V * ev.asDiagonal() * V.transpose();
+
+            // const Eigen::Matrix3f M = ms.sigma + fs_w.R;
+            const Eigen::Matrix3f M = sigma_gate + fs_w.R;
             const Eigen::LDLT<Eigen::Matrix3f> M_ldlt(M);
 
             const Eigen::Vector3f nu = fs_w.centroid - ms.mu;

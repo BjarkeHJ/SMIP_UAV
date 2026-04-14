@@ -19,7 +19,8 @@ public:
         VoxelGrid::Config grid_config;
 
         // GMM: E-step
-        float normal_gate_cos{0.866f}; // hard normal gate filter (30 deg)
+        // float normal_gate_cos{0.866f}; // hard normal gate filter (30 deg)
+        float normal_gate_cos{0.95f}; // hard normal gate filter (30 deg)
         float pi_birth{0.005f}; // birth prior - higher = easier birth of new surfels
         float birth_residual{0.5f}; // r_new threshold to spawn new surfel
 

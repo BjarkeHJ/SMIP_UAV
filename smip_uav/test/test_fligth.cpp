@@ -28,8 +28,8 @@ private:
     bool sent_{false};
     void send_once();
 
-    std::string path_config_{"forklift.yaml"};
-    // std::string path_config_{"warehouse.yaml"};
+    // std::string path_config_{"forklift.yaml"};
+    std::string path_config_{"warehouse.yaml"};
 
     geometry_msgs::msg::Quaternion yaw2quat(float yaw) {
         geometry_msgs::msg::Quaternion q;

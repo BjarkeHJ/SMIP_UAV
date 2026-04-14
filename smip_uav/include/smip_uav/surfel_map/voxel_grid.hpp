@@ -66,7 +66,7 @@ public:
     using const_iter_v = VoxelMap::const_iterator;
 
     struct Config {
-        float voxel_size{0.3f};
+        float voxel_size{0.5f};
         size_t initial_bucket_count{10000};
         float max_load_factor{0.75f};
     };
