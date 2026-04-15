@@ -13,7 +13,7 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
     weight_ch_ = viz_channels::frame_weight(*viz_, tof_frame_, "tof_weight", rclcpp::SensorDataQoS());
     edge_ch_ = viz_channels::frame_edge(*viz_, tof_frame_, "tof_edge", rclcpp::SensorDataQoS());
     surfel_ch_ = viz_channels::surfels(*viz_, tof_frame_, "tof_surfel", rclcpp::SensorDataQoS());
-    map_ch_ = viz_channels::map_surfels(*viz_, global_frame_, "map_surfel", rclcpp::SensorDataQoS());
+    map_ch_ = viz_channels::map_surfels_delta(*viz_, global_frame_, "map_surfel", rclcpp::SensorDataQoS());
     superpixel_ch_ = viz_channels::frame_superpixels(*viz_, tof_frame_, "tof_superpixels", rclcpp::SensorDataQoS());
 
     // SurfelMap
@@ -95,8 +95,7 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     const double t_update = clock_.toc();
     current_frame_ = smap_->frame();
 
-    std::vector<MapSurfel*> msurfels = smap_->get_all_surfels();
-    RCLCPP_INFO(this->get_logger(), "SurfelMap Update Time: %f - Map Size: %ld", t_update, msurfels.size());
+    RCLCPP_INFO(this->get_logger(), "SurfelMap Update Time: %f - Map Size: %ld", t_update, smap_->surfel_count());
 
     // Publish visualization
     depth_ch_.publish(current_frame_, this->get_clock()->now());
@@ -104,7 +103,7 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     weight_ch_.publish(current_frame_, this->get_clock()->now());
     edge_ch_.publish(current_frame_, this->get_clock()->now());
     surfel_ch_.publish(fsurfels, t_msg);
-    map_ch_.publish(msurfels, this->get_clock()->now());
+    map_ch_.publish(MapSurfelDelta{smap_->get_updated_surfels(), smap_->deleted_ids()}, this->get_clock()->now());
     superpixel_ch_.publish(SuperpixelImage{smap_->frame_labels(),
         static_cast<uint32_t>(current_frame_.W),
         static_cast<uint32_t>(current_frame_.H)}, t_msg);

@@ -7,6 +7,7 @@
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
+#include <unordered_set>
 
 // ==== INCLUDE SUPPORTED DATA TYPES (Custom) ====
 #include "common/point_types.hpp"
@@ -14,6 +15,11 @@
 struct SuperpixelImage {
     std::vector<int32_t> labels;
     uint32_t W{0}, H{0};
+};
+
+struct MapSurfelDelta {
+    std::vector<MapSurfel*> dirty;       // updated or newly spawned
+    std::unordered_set<uint32_t> deleted; // IDs removed from the map
 };
 
 // ==== VISUALIZATION CONVERTERS ====
@@ -247,10 +253,20 @@ inline visualization_msgs::msg::MarkerArray map_surfels_to_markers(
     const std::vector<MapSurfel*>& surfels,
     const rclcpp::Time& stamp,
     const std::string& frame_id,
-    float scale_factor = 3.0f) {
+    float scale_factor = 2.0f) {
 
     visualization_msgs::msg::MarkerArray ma;
-    ma.markers.reserve(surfels.size());
+    ma.markers.reserve(surfels.size() + 1);
+
+    // Clear all stale markers from the previous publish before adding current ones.
+    {
+        visualization_msgs::msg::Marker del;
+        del.header.frame_id = frame_id;
+        del.header.stamp = stamp;
+        del.ns = "surfels";
+        del.action = visualization_msgs::msg::Marker::DELETEALL;
+        ma.markers.push_back(del);
+    }
 
     for (size_t i = 0; i < surfels.size(); ++i) {
         const auto* s = surfels[i];
@@ -274,7 +290,7 @@ inline visualization_msgs::msg::MarkerArray map_surfels_to_markers(
         m.header.frame_id = frame_id;
         m.header.stamp = stamp;
         m.ns = "surfels";
-        m.id = static_cast<int>(i);
+        m.id = static_cast<int>(s->id);  // use the surfel's stable unique ID
         m.type = visualization_msgs::msg::Marker::SPHERE;
         m.action = visualization_msgs::msg::Marker::ADD;
 
@@ -305,6 +321,80 @@ inline visualization_msgs::msg::MarkerArray map_surfels_to_markers(
         // m.color.a = 0.6f;
 
         m.lifetime = rclcpp::Duration::from_seconds(0.00);
+
+        ma.markers.push_back(m);
+    }
+
+    return ma;
+}
+
+// Incremental update: only publish ADD for dirty surfels + DELETE for removed ones.
+// Call surfel_map.clear_viz_deltas() after publishing.
+inline visualization_msgs::msg::MarkerArray map_surfels_to_markers_delta(
+    const std::vector<MapSurfel*>& dirty_surfels,
+    const std::unordered_set<uint32_t>& deleted_ids,
+    const rclcpp::Time& stamp,
+    const std::string& frame_id,
+    float scale_factor = 2.0f) {
+
+    visualization_msgs::msg::MarkerArray ma;
+    ma.markers.reserve(dirty_surfels.size() + deleted_ids.size());
+
+    // DELETE markers for removed surfels
+    for (const uint32_t id : deleted_ids) {
+        visualization_msgs::msg::Marker m;
+        m.header.frame_id = frame_id;
+        m.header.stamp = stamp;
+        m.ns = "surfels";
+        m.id = static_cast<int>(id);
+        m.action = visualization_msgs::msg::Marker::DELETE;
+        ma.markers.push_back(m);
+    }
+
+    // ADD/modify markers for updated surfels
+    for (const auto* s : dirty_surfels) {
+        if (!s || !s->mu.allFinite()) continue;
+
+        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(s->sigma);
+        if (eig.info() != Eigen::Success) continue;
+        const Eigen::Vector3f evals = eig.eigenvalues().cwiseMax(1e-8f);
+        Eigen::Matrix3f evecs = eig.eigenvectors();
+
+        if (evecs.determinant() < 0.0f) {
+            evecs.col(0) = -evecs.col(0);
+        }
+
+        Eigen::Quaternionf q(evecs);
+        q.normalize();
+
+        visualization_msgs::msg::Marker m;
+        m.header.frame_id = frame_id;
+        m.header.stamp = stamp;
+        m.ns = "surfels";
+        m.id = static_cast<int>(s->id);
+        m.type = visualization_msgs::msg::Marker::SPHERE;
+        m.action = visualization_msgs::msg::Marker::ADD;
+
+        m.pose.position.x = s->mu.x();
+        m.pose.position.y = s->mu.y();
+        m.pose.position.z = s->mu.z();
+
+        m.pose.orientation.x = q.x();
+        m.pose.orientation.y = q.y();
+        m.pose.orientation.z = q.z();
+        m.pose.orientation.w = q.w();
+
+        m.scale.x = scale_factor * std::sqrt(evals(0) + 1e-6f);
+        m.scale.y = scale_factor * std::sqrt(evals(1) + 1e-6f);
+        m.scale.z = scale_factor * std::sqrt(evals(2) + 1e-6f);
+
+        Eigen::Vector3f n = s->normal;
+        m.color.r = 0.5f * (n.x() + 1.0f);
+        m.color.g = 0.5f * (n.y() + 1.0f);
+        m.color.b = 0.5f * (n.z() + 1.0f);
+        m.color.a = 0.6f;
+
+        m.lifetime = rclcpp::Duration::from_seconds(0.0);
 
         ma.markers.push_back(m);
     }
@@ -420,6 +510,20 @@ inline VizChannel<std::vector<MapSurfel*>, visualization_msgs::msg::MarkerArray>
     return viz.create<std::vector<MapSurfel*>, visualization_msgs::msg::MarkerArray>(subtopic, frame_id, qos,
         [](const std::vector<MapSurfel*>& S, const rclcpp::Time& stamp, const std::string& fid) {
             return viz_convs::map_surfels_to_markers(S, stamp, fid);
+        });
+}
+
+// Incremental channel: only pushes ADD for dirty surfels + DELETE for removed ones.
+// The node must call surfel_map.clear_viz_deltas() after each publish.
+inline VizChannel<MapSurfelDelta, visualization_msgs::msg::MarkerArray> map_surfels_delta(
+    Visualizer& viz,
+    const std::string& frame_id,
+    const std::string& subtopic,
+    rclcpp::QoS qos
+) {
+    return viz.create<MapSurfelDelta, visualization_msgs::msg::MarkerArray>(subtopic, frame_id, qos,
+        [](const MapSurfelDelta& d, const rclcpp::Time& stamp, const std::string& fid) {
+            return viz_convs::map_surfels_to_markers_delta(d.dirty, d.deleted, stamp, fid);
         });
 }
 

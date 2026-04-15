@@ -133,7 +133,7 @@ struct MapSurfel {
     bool converged{false};
 
     // recompute mu, sigma, normal - return false if W is too small (degenerate)
-    bool reconstruct(float lambda_max = -1.0f) {
+    bool reconstruct() {
         if (W < 1e-8f) return false;
 
         mu = S1 / W;
@@ -145,20 +145,7 @@ struct MapSurfel {
 
         Eigen::Vector3f ev = eig.eigenvalues().cwiseMax(1e-6f);
         const Eigen::Matrix3f V = eig.eigenvectors();
-        bool clamped = false;
-        if (lambda_max > 0.0f) {
-            for (int i = 0; i < 3; ++i) {
-                if (ev(i) > lambda_max) {
-                    ev(i) = lambda_max;
-                    clamped = true;
-                }
-            }
-        }
-
         sigma = V * ev.asDiagonal() * V.transpose();
-        if (clamped) {
-            S2 = W * (sigma + mu * mu.transpose());
-        }
 
         Eigen::Vector3f n_new = V.col(0);
         if (normal.squaredNorm() > 0.5f && n_new.dot(normal) < 0.0f) {
