@@ -329,13 +329,12 @@ inline visualization_msgs::msg::MarkerArray map_surfels_to_markers(
 }
 
 // Incremental update: only publish ADD for dirty surfels + DELETE for removed ones.
-// Call surfel_map.clear_viz_deltas() after publishing.
 inline visualization_msgs::msg::MarkerArray map_surfels_to_markers_delta(
     const std::vector<MapSurfel*>& dirty_surfels,
     const std::unordered_set<uint32_t>& deleted_ids,
     const rclcpp::Time& stamp,
     const std::string& frame_id,
-    float scale_factor = 2.0f) {
+    float scale_factor = 3.0f) {
 
     visualization_msgs::msg::MarkerArray ma;
     ma.markers.reserve(dirty_surfels.size() + deleted_ids.size());

@@ -143,7 +143,7 @@ struct MapSurfel {
         Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(sigma);
         if (eig.info() != Eigen::Success) return false;
 
-        Eigen::Vector3f ev = eig.eigenvalues().cwiseMax(1e-6f);
+        Eigen::Vector3f ev = eig.eigenvalues().cwiseMax(1e-8f);
         const Eigen::Matrix3f V = eig.eigenvectors();
         sigma = V * ev.asDiagonal() * V.transpose();
 
@@ -154,7 +154,6 @@ struct MapSurfel {
         normal = n_new;
         return true;
     }
-
 };
 
 

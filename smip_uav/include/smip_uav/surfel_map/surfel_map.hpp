@@ -20,17 +20,17 @@ public:
 
         // GMM: E-step
         float pi_spawn{0.005f}; // spawn prior - higher = easier spawn new surfels
-        float spawn_residual{0.9f}; // r_new threshold to spawn new surfel
+        float spawn_residual{0.75f}; // r_new threshold to spawn new surfel
 
         // Competitive health
-        float health_alpha{0.1f}; // EMA rate for health update
-        float health_min{0.01f}; // prune if health < this
-        uint32_t eval_min{5}; // min evaluations before pruning is allowed
+        float health_alpha{0.2f}; // EMA rate for health update
+        float health_min{0.05f}; // prune if health < this
+        uint32_t eval_min{20}; // min evaluations before pruning is allowed
 
         // Merge
         float merge_mahal_sq{3.0f}; // mahalanobis threshold for merging
-        float merge_normal_cos{0.95f}; // ~18 deg normal alignment required for merge
-        uint32_t merge_interval{10}; // frames between merge passes
+        float merge_normal_cos{0.99f}; // ~18 deg normal alignment required for merge
+        uint32_t merge_interval{5}; // frames between merge passes
     };
 
     SurfelMap() = default;
@@ -40,7 +40,7 @@ public:
 
     const std::vector<MapSurfel*>& get_all_surfels();
     std::vector<MapSurfel*> get_updated_surfels(); // reset after each call
-    
+
     size_t surfel_count() const { return grid_->total_surfel_count(); }
     const Frame& frame() const { return frame_; }
 

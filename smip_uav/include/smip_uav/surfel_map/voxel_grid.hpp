@@ -38,7 +38,7 @@ struct VoxelKeyHash {
 };
 
 struct Voxel {
-    static constexpr uint8_t MAX_NUM_SURFELS_PER_VOXLE = 6;
+    static constexpr uint8_t MAX_NUM_SURFELS_PER_VOXLE = 10;
 
     std::array<MapSurfel, MAX_NUM_SURFELS_PER_VOXLE> surfels;
     uint8_t count{0};

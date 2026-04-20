@@ -103,7 +103,11 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     weight_ch_.publish(current_frame_, this->get_clock()->now());
     edge_ch_.publish(current_frame_, this->get_clock()->now());
     surfel_ch_.publish(fsurfels, t_msg);
-    map_ch_.publish(MapSurfelDelta{smap_->get_updated_surfels(), smap_->deleted_ids()}, this->get_clock()->now());
+    // Capture deleted IDs as a copy BEFORE calling get_updated_surfels(),
+    // which internally calls clear_deltas() and would wipe deleted_ids_.
+    auto deleted_snapshot = smap_->deleted_ids();
+    map_ch_.publish(MapSurfelDelta{smap_->get_updated_surfels(), std::move(deleted_snapshot)}, this->get_clock()->now());
+    
     superpixel_ch_.publish(SuperpixelImage{smap_->frame_labels(),
         static_cast<uint32_t>(current_frame_.W),
         static_cast<uint32_t>(current_frame_.H)}, t_msg);

@@ -65,6 +65,7 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
     // M-Step: Apply accumulated deltas, reconstruct params
     for (auto& [ms_ptr, acc] : accums) {
         const float gamma = 0.995f;
+        // const float gamma = 1.0f;
         ms_ptr->W = gamma * ms_ptr->W + acc.delta_W;
         ms_ptr->S1 = gamma * ms_ptr->S1 + acc.delta_S1;
         ms_ptr->S2 = gamma * ms_ptr->S2 + acc.delta_S2;
