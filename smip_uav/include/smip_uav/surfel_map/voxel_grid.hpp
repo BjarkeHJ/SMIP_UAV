@@ -2,18 +2,49 @@
 #define VOXEL_GRID_
 
 #include <unordered_map>
-#include "surfel_map/surfel.hpp"
+#include <common/point_types.hpp>
 
 namespace smip_uav {
 
-struct Voxel {
-    static constexpr uint8_t MAX_NUM_SURFELS_PER_VOXLE = 4;
+struct VoxelKey {
+    int32_t x,y,z;
+    bool operator==(const VoxelKey& other) const {
+        return x == other.x && y == other.y && z == other.z;
+    }
+    bool operator!=(const VoxelKey& other) const {
+        return !(*this == other);
+    }
+    bool operator<(const VoxelKey& other) const {
+        if (x != other.x) return x < other.x;
+        if (y != other.y) return y < other.y;
+        return z < other.z; 
+    }
+};
 
-    std::array<Surfel, MAX_NUM_SURFELS_PER_VOXLE> surfels;
+struct VoxelKeyHash {
+    size_t operator()(const VoxelKey& k) const {
+        // spread bits of each coordinate then interleave
+        auto spread = [](uint32_t v) -> uint64_t {
+            uint64_t x = v;
+            x = (x | x << 32) & 0x1f00000000ffff;
+            x = (x | x << 16) & 0x1f0000ff0000ff;
+            x = (x | x << 8)  & 0x100f00f00f00f00f;
+            x = (x | x << 4)  & 0x10c30c30c30c30c3;
+            x = (x | x << 2)  & 0x1249249249249249;
+            return x;
+        };
+        return spread(k.x) | (spread(k.y) << 1) | (spread(k.z) << 2);
+    }
+};
+
+struct Voxel {
+    static constexpr uint8_t MAX_NUM_SURFELS_PER_VOXLE = 10;
+
+    std::array<MapSurfel, MAX_NUM_SURFELS_PER_VOXLE> surfels;
     uint8_t count{0};
 
     // Try to add surfel: Return pointer to added surfel if added - nullptr if full/unable to add. 
-    Surfel* try_add(const Surfel& s); 
+    MapSurfel* try_add(const MapSurfel& s); 
     
     // Remove surfel at index. Return false if index is invalid
     bool remove_at(uint8_t idx);
@@ -22,10 +53,10 @@ struct Voxel {
     bool empty() const { return  count == 0; }
 
     // Iterable ranger over active surfels
-    Surfel* begin() { return surfels.data(); }
-    Surfel* end() { return surfels.data() + count; }
-    const Surfel* begin() const { return surfels.data(); }
-    const Surfel* end() const { return surfels.data() + count; }
+    MapSurfel* begin() { return surfels.data(); }
+    MapSurfel* end() { return surfels.data() + count; }
+    const MapSurfel* begin() const { return surfels.data(); }
+    const MapSurfel* end() const { return surfels.data() + count; }
 };
 
 class VoxelGrid {
@@ -35,7 +66,7 @@ public:
     using const_iter_v = VoxelMap::const_iterator;
 
     struct Config {
-        float voxel_size{0.2f};
+        float voxel_size{0.25f};
         size_t initial_bucket_count{10000};
         float max_load_factor{0.75f};
     };
@@ -59,8 +90,27 @@ public:
     bool remove(const VoxelKey& key);
 
     // Neighbor access: Calls fn(VoxelKey, Voxel&) for each existing neighboring voxel (nb6 or nb26 adjacencies)
-    void for_each_nb6(const VoxelKey& center, const std::function<void(const VoxelKey&, Voxel&)>& fn);
-    void for_each_nb26(const VoxelKey& center, const std::function<void(const VoxelKey&, Voxel&)>& fn);
+    template<typename Fn>
+    void for_each_nb6(const VoxelKey& c, Fn&& fn) {
+        static constexpr int32_t offsets[6][3] = {
+            {-1,0,0}, {1,0,0}, {0,-1,0}, {0,1,0}, {0,0,-1}, {0,0,1}
+        };
+        for (const auto& o : offsets) {
+            VoxelKey nk{c.x + o[0], c.y + o[1], c.z + o[2]};
+            if (auto* v = get(nk)) fn(nk, *v);
+        }
+    }
+
+    template<typename Fn>
+    void for_each_nb26(const VoxelKey& c, Fn&& fn) {
+        for (int32_t dx = -1; dx <= 1; ++dx)
+            for (int32_t dy = -1; dy <= 1; ++dy)
+                for (int32_t dz = -1; dz <= 1; ++dz) {
+                    if (dx == 0 && dy == 0 && dz == 0) continue;
+                    VoxelKey nk{c.x + dx, c.y + dy, c.z + dz};
+                    if (auto* v = get(nk)) fn(nk, *v);
+                }
+    }
 
     // Iteration 
     iter_v begin() { return voxels_.begin(); }

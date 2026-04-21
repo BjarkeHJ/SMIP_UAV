@@ -1,83 +1,111 @@
 #ifndef SURFEL_MAP_HPP_
 #define SURFEL_MAP_HPP_
 
+#include <iostream>
+#include <memory>
+#include <unordered_set>
+#include "surfel_map/frame_builder.hpp"
+#include "surfel_map/frame_processor.hpp"
 #include "surfel_map/voxel_grid.hpp"
 
 namespace smip_uav {
 
 class SurfelMap {
 public:
-    // Config Struct
     struct Config {
-        VoxelGrid::Config grid_config{};
+        // ENTIRE CONFIG - Will branch out
+        FrameBuilder::Config builder_config;
+        FrameProcessor::Config processor_config;
+        VoxelGrid::Config grid_config;
 
-        // Association
-        float assoc_normal_cos_mature{0.94}; // 0.94 ~20deg
-        float assoc_normal_cos_tentative{0.5}; //0.5 ~40deg
-        float assoc_point_to_plane_max{0.05}; // meters
-        
-        // Lifecycle
-        size_t surfel_min_points{25};
-        size_t surfel_max_points{1000};
-        
-        // Creation
-        float creation_min_normal_separaton_cos{0.85f}; // 0.85 ~32deg
-        
-        // Maintenance
-        size_t maintanence_interval_N{10};
-        float merge_normal_cos{0.90};
-        float merge_point_to_plane_max{0.1f};
-        float boundary_margin_ratio{0.2f};
-        float tentative_timeout_sec{2.0f};
-        float min_planarity{0.1f};
+        // GMM: E-step
+        float pi_spawn{0.005f}; // spawn prior - higher = easier spawn new surfels
+        float spawn_residual{0.75f}; // r_new threshold to spawn new surfel
+
+        // M-step
+        float gamma_forget{0.99f}; // Forgetting factor
+
+        // Normal alignment - shared angular scale for E-step and merge
+        float normal_sigma{static_cast<float>(M_PI) / 8.0f}; // std-dev of normal Gaussian (rad)
+        float merge_normal_k{0.5f}; // merge threshold at k*sigma — must be < E-step 1-sigma
+
+        // Merge
+        float merge_mahal_sq{3.0f}; // mahalanobis threshold for merging
+        uint32_t merge_interval{5}; // frames between merge passes
     };
 
-    SurfelMap();
+    SurfelMap() = default;
     explicit SurfelMap(const Config& cfg);
 
-    void integrate_frame(const Frame& frame);
+    void update(const std::vector<PointXYZ>& scan, const Eigen::Isometry3f& pose, int64_t timestamp_ns, std::vector<FrameSurfel>* frame_surfels_out=nullptr);
 
-    // Finalized and maintained map (not in fragile state): What is open to the "public"
-    bool has_map() const { return has_public_; }
-    const VoxelGrid& map() const { return grid_public_; }
-    std::vector<const Surfel*> surfels() const;
+    const std::vector<MapSurfel*>& get_all_surfels();
+    std::vector<MapSurfel*> get_updated_surfels(); // reset after each call
 
-    size_t frame_count() const { return frame_count_; }
-    size_t working_voxel_count() const { return grid_.size(); }
-    size_t working_surfel_count() const { return grid_public_.total_surfel_count(); }
+    size_t surfel_count() const { return grid_->total_surfel_count(); }
+    const Frame& frame() const { return frame_; }
+
+    // Per-pixel surfel labels from the last processed frame (-1 = unassigned)
+    const std::vector<int32_t>& frame_labels() const { return processor_->labels(); }
+
+    // Incremental viz delta tracking
+    const std::unordered_set<uint32_t>& deleted_ids() const { return deleted_ids_; }
 
 private:
-    // Per-Point integration
-    void associate_and_fuse(const PointNormal& pn, const Eigen::Vector3f& view_dir, int64_t timestamp);
-    Surfel* find_best_match(Voxel& voxel, const PointNormal& pn);
-    void handle_new_surface(Voxel& voxel, const PointNormal& pn, const Eigen::Vector3f& view_dir, const VoxelKey& key, int64_t timestamp);
+    // One entry in the responsibility vector for a single frame surfel
+    struct RespEntry {
+        MapSurfel* component;
+        float log_r_tilde; // unnormalized log-responsibility
+        float r; // normalized responsibility [0,1]
+    };
 
-    // Maintenance
-    void run_maintenance(int64_t timestamp);
-    void recompute_dirty(Voxel& voxel);
-    void merge_similar(Voxel& voxel);
-    void merge_boundary_surfels(const VoxelKey& key, Voxel& voxel);
-    void evict_stale(Voxel& voxel, int64_t timestamp);
-    void evict_low_quality(Voxel& voxel);
+    // Per component accumulator for one frame's E/M step
+    struct ComponentAccum {
+        float delta_W{0.0f};
+        Eigen::Vector3f delta_S1{Eigen::Vector3f::Zero()};
+        Eigen::Matrix3f delta_S2{Eigen::Matrix3f::Zero()};
+    };
 
-    void update_public(); // update public map representation
+    void integrate(const std::vector<FrameSurfel>& frame_surfels, const Eigen::Isometry3f& pose, int64_t timestamp_ns);
+    float compute_responsibilities(const FrameSurfel& fs_w, std::vector<RespEntry>& resp_out);
+    void spawn(const FrameSurfel& fs_w, int64_t timestamp_ns);
+    void merge();
 
     // Helpers
-    bool merge_ok(const Surfel& a, const Eigen::Vector3f& pos_a_world, const Surfel& b, const Eigen::Vector3f& pos_b_world) const;
-    bool merge_ok_same_voxel(const Surfel& a, const Surfel& b, const VoxelKey& key) const;
-    bool try_free_slot(Voxel& voxel, const VoxelKey& key, int64_t timestamp);
+    FrameSurfel transform_surfel_to_world(const FrameSurfel& fs, const Eigen::Isometry3f& pose) const;
+    void clear_deltas() { updated_ids_.clear(); deleted_ids_.clear(); };
 
-    // State
-    VoxelGrid grid_;
-    VoxelGrid grid_public_;
-    bool has_public_{false};
-    Config config_;
-    size_t frame_count_{0};
+    // Components
+    std::unique_ptr<FrameBuilder> builder_;
+    std::unique_ptr<FrameProcessor> processor_;
+    std::unique_ptr<VoxelGrid> grid_;
 
-    // Misc
-    int64_t tentative_timeout_ns_{0};
+    // Buffers
+    Frame frame_;
+    std::vector<MapSurfel*> surfel_cache_;
+    bool cache_dirty_{false};
+
+    std::unordered_map<MapSurfel*, ComponentAccum> accums_;
+    std::vector<FrameSurfel> spawn_candidates_;
+    std::vector<RespEntry> resp_;
+
+    // Incremental deltas
+    std::unordered_set<uint32_t> updated_ids_;   // new or updated since last get_updated_surfels() call
+    std::unordered_set<uint32_t> deleted_ids_; // removed since last get_updated_surfels() call
+
+    // Config
+    Config cfg_;
+
+    // Constants
+    float log_2pi_1_5_{0.0f};    // 1.5 * log(2pi)
+    float log_lambda_new_{0.0f}; // log(pi_spawn / V_voxel)
+    float inv_2_sigma_n_sq_{0.0f}; // 1 / (2 * sigma_n^2) — E-step normal penalty scale
+    float merge_normal_cos_{0.0f}; // cos(k * sigma_n) — merge hard gate, derived from normal_sigma
+
+    // Counters
+    uint32_t frame_count_{0};
+    mutable int32_t next_id_{1};
 };
-
 
 } // smip_uav
 

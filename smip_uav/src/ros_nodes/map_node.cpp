@@ -11,11 +11,11 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
     depth_ch_ = viz_channels::frame_depth(*viz_, tof_frame_, "tof_depth", rclcpp::SensorDataQoS()); // TODO: ranges from sensor config
     normal_ch_ = viz_channels::frame_normal(*viz_, tof_frame_, "tof_normal", rclcpp::SensorDataQoS());
     weight_ch_ = viz_channels::frame_weight(*viz_, tof_frame_, "tof_weight", rclcpp::SensorDataQoS());
-    surfel_ch_ = viz_channels::surfels_normal(*viz_, "odom", "surfel_map_markers", rclcpp::SensorDataQoS());
+    edge_ch_ = viz_channels::frame_edge(*viz_, tof_frame_, "tof_edge", rclcpp::SensorDataQoS());
+    surfel_ch_ = viz_channels::surfels(*viz_, tof_frame_, "tof_surfel", rclcpp::SensorDataQoS());
+    map_ch_ = viz_channels::map_surfels_delta(*viz_, global_frame_, "map_surfel", rclcpp::SensorDataQoS());
+    superpixel_ch_ = viz_channels::frame_superpixels(*viz_, tof_frame_, "tof_superpixels", rclcpp::SensorDataQoS());
 
-    // Preprocessing
-    preproc_ = std::make_unique<SensorDataPreprocess>(SensorDataPreprocess::Config{});
-    
     // SurfelMap
     smap_ = std::make_unique<SurfelMap>(SurfelMap::Config{});
 
@@ -88,56 +88,29 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
         }
     }
 
-    // run preprocess
-    GroundPlane gnd;
-    gnd.normal_z = tf_.rotation().transpose() * Eigen::Vector3f::UnitZ();
-    gnd.offset_z = -gnd.normal_z.dot(tf_.inverse().translation());
-    current_frame_ = preproc_->process(pts_, timestamp_ns, &gnd);
+    // Update SurfelMap with points...
+    std::vector<FrameSurfel> fsurfels;
+    clock_.tic();
+    smap_->update(pts_, tf_, timestamp_ns, &fsurfels);
+    const double t_update = clock_.toc();
+    current_frame_ = smap_->frame();
 
-    current_frame_.tf_pose = tf_; // Set transform (maybe change the way this is done...)
-
-    clock_.tic();    
-    smap_->integrate_frame(current_frame_);
-    double tif = clock_.toc();
-    std::cout << "Integrated frame of " << current_frame_.valid_count() << " points in " << tif << " ms." << std::endl;
-
-    size_t wvc = smap_->working_surfel_count();
-    std::cout << "N Surfels: " << wvc << std::endl;
-
-
-    // Publish updated map
-    bool hm = smap_->has_map();
-    if (hm) {
-        const VoxelGrid& psmap = smap_->map();
-        std::cout << "Has public map of size: " << psmap.size() << std::endl;
-
-        std::unordered_set<uint32_t> current_ids;
-        viz_convs::SurfelVizDelta delta;
-        delta.voxel_size = 0.2f; // set from launch
-
-        for (const auto& [key, voxel] : psmap) {
-            for (const auto& surfel : voxel) {
-                if (!surfel.is_mature(25) || surfel.planarity() < 0.15f) continue;
-                const uint32_t sid = surfel.id();
-                current_ids.insert(sid);
-                if (!published_surfel_ids_.count(sid) || surfel.updated_at() >= timestamp_ns) {
-                    delta.to_add.push_back(&surfel);
-                }
-            }
-        }
-
-        for (uint32_t old_id : published_surfel_ids_) {
-            if (!current_ids.count(old_id)) delta.to_delete.push_back(old_id);
-        }
-
-        published_surfel_ids_ = std::move(current_ids);
-        surfel_ch_.publish(delta, this->get_clock()->now());
-    }
+    RCLCPP_INFO(this->get_logger(), "SurfelMap Update Time: %f - Map Size: %ld", t_update, smap_->surfel_count());
 
     // Publish visualization
     depth_ch_.publish(current_frame_, this->get_clock()->now());
     normal_ch_.publish(current_frame_, this->get_clock()->now());
     weight_ch_.publish(current_frame_, this->get_clock()->now());
+    edge_ch_.publish(current_frame_, this->get_clock()->now());
+    surfel_ch_.publish(fsurfels, t_msg);
+    // Capture deleted IDs as a copy BEFORE calling get_updated_surfels(),
+    // which internally calls clear_deltas() and would wipe deleted_ids_.
+    auto deleted_snapshot = smap_->deleted_ids();
+    map_ch_.publish(MapSurfelDelta{smap_->get_updated_surfels(), std::move(deleted_snapshot)}, this->get_clock()->now());
+    
+    superpixel_ch_.publish(SuperpixelImage{smap_->frame_labels(),
+        static_cast<uint32_t>(current_frame_.W),
+        static_cast<uint32_t>(current_frame_.H)}, t_msg);
 }
 
 

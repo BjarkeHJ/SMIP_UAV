@@ -3,7 +3,7 @@
 namespace smip_uav {
 
 // VOXEL
-Surfel* Voxel::try_add(const Surfel& s) {
+MapSurfel* Voxel::try_add(const MapSurfel& s) {
     if (full()) return nullptr;
     surfels[count] = s;
     return &surfels[count++];
@@ -64,31 +64,6 @@ bool VoxelGrid::remove(const VoxelKey& key) {
     return voxels_.erase(key) > 0;
 }
 
-void VoxelGrid::for_each_nb6(const VoxelKey& c, const std::function<void(const VoxelKey&, Voxel&)>& fn) {
-    static constexpr int32_t offsets[6][3] = {
-        {-1,0,0}, {1,0,0}, {0,-1,0}, {0,1,0}, {0,0,-1}, {0,0,1}
-    };
-    for (const auto& o : offsets) {
-        VoxelKey nk{c.x + o[0], c.y + o[1], c.z + o[2]};
-        if (auto* v = get(nk)) {
-            fn(nk, *v);
-        }
-    }
-}
-
-void VoxelGrid::for_each_nb26(const VoxelKey& c, const std::function<void(const VoxelKey&, Voxel&)>& fn) {
-    for (int32_t dx = -1; dx <= 1; ++dx) {
-        for (int32_t dy = -1; dy <= 1; ++dy) {
-            for (int32_t dz = -1; dz <= 1; ++dz) {
-                if (dx == 0 && dy == 0 && dz == 0) continue;
-                VoxelKey nk{c.x + dx, c.y + dy, c.z + dz};
-                if (auto* v = get(nk)) {
-                    fn(nk, *v);
-                }
-            }
-        }
-    }
-}
 
 size_t VoxelGrid::total_surfel_count() const {
     size_t total = 0;
