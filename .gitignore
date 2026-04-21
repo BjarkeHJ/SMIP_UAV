@@ -19,7 +19,6 @@ Makefile
 
 # Python virtual environments (if used)
 venv/
-.env/
 
 # VSCode
 .vscode/

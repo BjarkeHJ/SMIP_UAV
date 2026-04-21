@@ -34,7 +34,6 @@ void SurfelMap::update(const std::vector<PointXYZ>& scan, const Eigen::Isometry3
     if (cfg_.merge_interval > 0 && (frame_count_ % cfg_.merge_interval) == 0) {
         merge();
     }
-
 }
 
 void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const Eigen::Isometry3f& pose, int64_t timestamp_ns) {
@@ -85,7 +84,6 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
     for (const FrameSurfel& fs_w : spawn_candidates_) {
         spawn(fs_w, timestamp_ns);
     }
-
 
     cache_dirty_ = true;
 }
@@ -199,6 +197,7 @@ void SurfelMap::merge() {
         VoxelKey victim_key;
         uint8_t victim_idx;
     };
+
     std::vector<MergePair> pairs;
 
     for (auto& [key_a, voxel_a] : *grid_) {
