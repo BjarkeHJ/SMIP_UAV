@@ -22,8 +22,8 @@ public:
         
         // Preprocessing
         bool transpose_input{false}; // True: Real Sensor data, False: Gz Sim data (message layout order is reversed also)
-        bool enable_ground_filter{false};
-        float ground_z_min{0.05f};
+        bool enable_ground_filter{true};
+        float ground_z_min{0.01f};
         int ds_factor{1};
 
         float edge_normal_th{0.52f}; // normal simi for edges ~30deg

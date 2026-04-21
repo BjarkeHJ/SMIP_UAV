@@ -1,0 +1,36 @@
+waypoints:
+  # Takeoff
+  - pos: [0.0, 0.0, 0.2]
+    yaw: 0.0
+
+  # Ascend
+  - pos: [0.0, 0.0, 20.0]
+    yaw: 0.0
+
+  # Turn
+  - pos: [7.5, 10.0, 20.0]
+    yaw: 1.570796
+
+  # Decend
+  - pos: [7.5, 10.0, 3.0]
+    yaw: 1.570796
+
+  # Turn
+  - pos: [15.0, 0.0, 3.0]
+    yaw: 3.141593
+  
+  # Acend
+  - pos: [15.0, 0.0, 20.0]
+    yaw: 3.141593
+
+  # Turn
+  - pos: [7.5, -10.0, 20.0]
+    yaw: 4.712389
+
+  # Decend
+  - pos: [7.5, -10.0, 3.0]
+    yaw: 4.712389
+
+  # Return and land
+  - pos: [0.0, 0.0, 0.2]
+    yaw: 0.0

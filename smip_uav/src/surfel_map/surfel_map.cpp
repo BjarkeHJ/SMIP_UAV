@@ -7,10 +7,14 @@ SurfelMap::SurfelMap(const Config& cfg) : cfg_(cfg) {
     processor_ = std::make_unique<FrameProcessor>(cfg_.processor_config);
     grid_ = std::make_unique<VoxelGrid>(cfg_.grid_config);
 
-    log_2pi_1_5_ = 1.5f * std::log(2.0f * static_cast<float>(M_PI)); // 1.5 * log(2pi)
+    log_2pi_1_5_ = 1.5f * std::log(2.0f * static_cast<float>(M_PI));
     const float vs = cfg_.grid_config.voxel_size;
     const float V_voxel = vs * vs * vs;
     log_lambda_new_ = std::log(cfg_.pi_spawn) - std::log(V_voxel);
+
+    const float sigma_n = cfg_.normal_sigma;
+    inv_2_sigma_n_sq_ = 1.0f / (2.0f * sigma_n * sigma_n);
+    merge_normal_cos_ = std::cos(cfg_.merge_normal_k * sigma_n);
 }
 
 void SurfelMap::update(const std::vector<PointXYZ>& scan, const Eigen::Isometry3f& pose, int64_t timestamp_ns, std::vector<FrameSurfel>* frame_surfels_out) {
@@ -34,23 +38,24 @@ void SurfelMap::update(const std::vector<PointXYZ>& scan, const Eigen::Isometry3
 }
 
 void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const Eigen::Isometry3f& pose, int64_t timestamp_ns) {
-    std::unordered_map<MapSurfel*, ComponentAccum> accums;
-    std::vector<FrameSurfel> spawn_candidates;
-    std::vector<RespEntry> resp;
+    // Clear buffers
+    accums_.clear();
+    spawn_candidates_.clear();
+    resp_.clear();
 
     // E-Step: Compute responsibilities and accumulate
     for (const FrameSurfel& fs : frame_surfels) {
         FrameSurfel fs_w = transform_surfel_to_world(fs, pose);
 
-        resp.clear();
-        const float r_new = compute_responsibilities(fs_w, resp);
-        const float w_k = fs_w.weight;
+        resp_.clear();
+        const float r_new = compute_responsibilities(fs_w, resp_);
+        const float w_k = fs_w.weight * fs_w.view_cos_theta;
 
         // accumulate weighted observations into each responsible component
-        for (const auto& entry : resp) {
+        for (const auto& entry : resp_) {
             if (entry.r < 1e-6f) continue;
 
-            auto& acc = accums[entry.component];
+            auto& acc = accums_[entry.component];
             const float wr = w_k * entry.r;
             acc.delta_W += wr;
             acc.delta_S1 += wr * fs_w.centroid;
@@ -58,14 +63,13 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
         }
 
         if (r_new > cfg_.spawn_residual) {
-            spawn_candidates.push_back(fs_w);
+            spawn_candidates_.push_back(fs_w);
         }
     }
 
     // M-Step: Apply accumulated deltas, reconstruct params
-    for (auto& [ms_ptr, acc] : accums) {
-        // const float gamma = 0.995f;
-        const float gamma = 1.0f;
+    const float gamma = cfg_.gamma_forget;
+    for (auto& [ms_ptr, acc] : accums_) {
         ms_ptr->W = gamma * ms_ptr->W + acc.delta_W;
         ms_ptr->S1 = gamma * ms_ptr->S1 + acc.delta_S1;
         ms_ptr->S2 = gamma * ms_ptr->S2 + acc.delta_S2;
@@ -78,7 +82,7 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
     }
 
     // Spawn new
-    for (const FrameSurfel& fs_w : spawn_candidates) {
+    for (const FrameSurfel& fs_w : spawn_candidates_) {
         spawn(fs_w, timestamp_ns);
     }
 
@@ -94,11 +98,11 @@ float SurfelMap::compute_responsibilities(const FrameSurfel& fs_w, std::vector<R
         for (uint8_t i = 0; i < voxel.count; ++i) {
             MapSurfel& ms = voxel.surfels[i];
 
-            // Soft normal gate
-            const float angle_n = std::acos(std::clamp(std::abs(fs_w.normal.dot(ms.normal)), 0.0f, 1.0f));
-            const float log_p_normal = -0.5f * (angle_n * angle_n) / 0.1542f; // (pi/8)²
+            // Soft normal penalty: log N(theta; 0, sigma_n) via small-angle approx theta^2 ~ 2(1-cos)
+            // Avoids acos in hot path; inv_2_sigma_n_sq_ = 1/(2*sigma_n^2), shared with merge threshold.
+            const float dot_n = fs_w.normal.dot(ms.normal);
+            const float log_p_normal = -(1.0f - dot_n) * inv_2_sigma_n_sq_;
 
-            // const Eigen::Matrix3f M = sigma_gate + fs_w.R;
             const Eigen::Matrix3f M = ms.sigma + fs_w.R;
             const Eigen::LDLT<Eigen::Matrix3f> M_ldlt(M);
 
@@ -109,8 +113,7 @@ float SurfelMap::compute_responsibilities(const FrameSurfel& fs_w, std::vector<R
             const float log_det_M = M_ldlt.vectorD().array().abs().log().sum();
 
             // log(r~)
-            const float log_r_tilde = std::log(ms.W + 1e-10f) - log_2pi_1_5_ - 0.5 * log_det_M - 0.5f * epsilon + log_p_normal;
-            // const float log_r_tilde = std::log(ms.W + 1e-10f) - log_2pi_1_5_ - 0.5 * log_det_M - 0.5f * epsilon;
+            const float log_r_tilde = std::log(ms.W + 1e-10f) - log_2pi_1_5_ - 0.5f*log_det_M - 0.5f*epsilon + log_p_normal;
 
             resp_out.push_back({&ms, log_r_tilde, 0.0f});
         }
@@ -122,6 +125,14 @@ float SurfelMap::compute_responsibilities(const FrameSurfel& fs_w, std::vector<R
     if (resp_out.empty()) {
         return 1.0f; // no candidates at all - entire resp goes to spawn
     }
+
+    // Normalize component log-priors by local neighbourhood total weight so that
+    // log(W_j) -> log(W_j / sum_W), keeping the fixed spawn hypothesis calibrated
+    // as the map matures and individual W_j values grow without bound.
+    float sum_W = 0.0f;
+    for (const auto& e : resp_out) sum_W += e.component->W;
+    const float log_sum_W = std::log(sum_W + 1e-10f);
+    for (auto& e : resp_out) e.log_r_tilde -= log_sum_W;
 
     // find max log value for numerical stability
     float max_log = log_lambda_new_;
@@ -162,8 +173,21 @@ void SurfelMap::spawn(const FrameSurfel& fs_w, int64_t timestamp_ns) {
 
     const VoxelKey key = grid_->to_key(ms.mu);
     Voxel& voxel = grid_->get_or_create(key);
+
+    if (voxel.full()) {
+        uint8_t min_idx = 0;
+        for (uint8_t i = 1; i < voxel.count; ++i) {
+            if (voxel.surfels[i].W < voxel.surfels[min_idx].W) min_idx = i;
+        }
+        if (ms.W <= voxel.surfels[min_idx].W) return; // newcomer weaker than all - drop
+
+        const uint32_t evicted_id = voxel.surfels[min_idx].id;
+        voxel.remove_at(min_idx);
+        deleted_ids_.insert(evicted_id);
+        updated_ids_.erase(evicted_id);
+    }
+
     if (voxel.try_add(ms)) {
-        // Delta update tracking
         updated_ids_.insert(ms.id);
     }
 }
@@ -185,7 +209,7 @@ void SurfelMap::merge() {
                 MapSurfel& a = voxel_a.surfels[i];
                 MapSurfel& b = voxel_a.surfels[j];
             
-                if (std::abs(a.normal.dot(b.normal)) < cfg_.merge_normal_cos) continue; // hard normal gate
+                if (a.normal.dot(b.normal) < merge_normal_cos_) continue;
 
                 const Eigen::Vector3f d = a.mu - b.mu;
                 const Eigen::Matrix3f S = a.sigma + b.sigma;
@@ -211,7 +235,7 @@ void SurfelMap::merge() {
                     MapSurfel& a = voxel_a.surfels[i];
                     MapSurfel& b = voxel_b.surfels[j];
 
-                    if (std::abs(a.normal.dot(b.normal)) < cfg_.merge_normal_cos) continue; // hard normal gate
+                    if (a.normal.dot(b.normal) < merge_normal_cos_) continue;
 
                     const Eigen::Vector3f d = a.mu - b.mu;
                     const Eigen::Matrix3f S = a.sigma + b.sigma;

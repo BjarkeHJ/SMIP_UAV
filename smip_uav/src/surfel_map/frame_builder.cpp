@@ -97,7 +97,9 @@ void FrameBuilder::estimate_normals(Frame& frame) {
         return {false, {}};
     };
  
-    const float alpha = 1.0f / (proj_.max_range_sq);
+    // const float alpha = 1.0f / (proj_.max_range_sq);
+    const float alpha = 1.0f / (config_.max_range);
+    // const float alpha = 1.0f / (config_.min_range);
  
     for (size_t v = 0; v < P.H; ++v) {
         for (size_t u = 0; u < P.W; ++u) {
@@ -133,7 +135,8 @@ void FrameBuilder::estimate_normals(Frame& frame) {
             const float w_range = 1.0f / (1.0f + alpha * r * r);
  
             const float cos_inc = std::abs(normal.dot(-Pc.normalized()));
-            const float w_incidence = std::pow(cos_inc, 0.5f);
+            // const float w_incidence = std::pow(cos_inc, 0.5f);
+            const float w_incidence = std::pow(cos_inc, 1.0f);
  
             const float un = tu.norm();
             const float vn = tv.norm();

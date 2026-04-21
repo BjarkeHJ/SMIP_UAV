@@ -22,9 +22,15 @@ public:
         float pi_spawn{0.005f}; // spawn prior - higher = easier spawn new surfels
         float spawn_residual{0.75f}; // r_new threshold to spawn new surfel
 
+        // M-step
+        float gamma_forget{0.99f}; // Forgetting factor
+
+        // Normal alignment - shared angular scale for E-step and merge
+        float normal_sigma{static_cast<float>(M_PI) / 8.0f}; // std-dev of normal Gaussian (rad)
+        float merge_normal_k{0.5f}; // merge threshold at k*sigma — must be < E-step 1-sigma
+
         // Merge
         float merge_mahal_sq{3.0f}; // mahalanobis threshold for merging
-        float merge_normal_cos{0.99f}; // ~18 deg normal alignment required for merge
         uint32_t merge_interval{5}; // frames between merge passes
     };
 
@@ -79,6 +85,10 @@ private:
     std::vector<MapSurfel*> surfel_cache_;
     bool cache_dirty_{false};
 
+    std::unordered_map<MapSurfel*, ComponentAccum> accums_;
+    std::vector<FrameSurfel> spawn_candidates_;
+    std::vector<RespEntry> resp_;
+
     // Incremental deltas
     std::unordered_set<uint32_t> updated_ids_;   // new or updated since last get_updated_surfels() call
     std::unordered_set<uint32_t> deleted_ids_; // removed since last get_updated_surfels() call
@@ -87,8 +97,10 @@ private:
     Config cfg_;
 
     // Constants
-    float log_2pi_1_5_{0.0f}; // 1.5 * log(2pi)
+    float log_2pi_1_5_{0.0f};    // 1.5 * log(2pi)
     float log_lambda_new_{0.0f}; // log(pi_spawn / V_voxel)
+    float inv_2_sigma_n_sq_{0.0f}; // 1 / (2 * sigma_n^2) — E-step normal penalty scale
+    float merge_normal_cos_{0.0f}; // cos(k * sigma_n) — merge hard gate, derived from normal_sigma
 
     // Counters
     uint32_t frame_count_{0};
