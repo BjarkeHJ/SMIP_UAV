@@ -22,11 +22,6 @@ public:
         float pi_spawn{0.005f}; // spawn prior - higher = easier spawn new surfels
         float spawn_residual{0.75f}; // r_new threshold to spawn new surfel
 
-        // Competitive health
-        float health_alpha{0.2f}; // EMA rate for health update
-        float health_min{0.05f}; // prune if health < this
-        uint32_t eval_min{20}; // min evaluations before pruning is allowed
-
         // Merge
         float merge_mahal_sq{3.0f}; // mahalanobis threshold for merging
         float merge_normal_cos{0.99f}; // ~18 deg normal alignment required for merge
@@ -63,13 +58,11 @@ private:
         float delta_W{0.0f};
         Eigen::Vector3f delta_S1{Eigen::Vector3f::Zero()};
         Eigen::Matrix3f delta_S2{Eigen::Matrix3f::Zero()};
-        float available_weight{0.0f}; // toatal w_k of candidates (for health)
     };
 
     void integrate(const std::vector<FrameSurfel>& frame_surfels, const Eigen::Isometry3f& pose, int64_t timestamp_ns);
     float compute_responsibilities(const FrameSurfel& fs_w, std::vector<RespEntry>& resp_out);
     void spawn(const FrameSurfel& fs_w, int64_t timestamp_ns);
-    void prune();
     void merge();
 
     // Helpers

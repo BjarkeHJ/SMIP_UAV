@@ -125,27 +125,32 @@ struct MapSurfel {
     uint32_t obs_count{0}; // incremented once per frame
     int64_t last_seen{0};
 
-    // Competitive health
-    float health{1.0f}; // EMA of per-frame capture ratio
-    uint32_t n_eval{0}; // number of frames health was evaluated
+    // Geometry (computed by reconstruct, sorted ascending: [0]=normal, [2]=major)
+    Eigen::Vector3f eigenvalues{Eigen::Vector3f::Constant(1e-3f)};
 
     // Convergence
     bool converged{false};
 
-    // recompute mu, sigma, normal - return false if W is too small (degenerate)
+    // planarity = (eigenvalues[1] - eigenvalues[0]) / eigenvalues[2]
+    // 1.0 = perfect disk, 0.0 = blob or needle
+    float planarity() const {
+        return (eigenvalues[1] - eigenvalues[0]) / (eigenvalues[2] + 1e-10f);
+    }
+
+    // recompute mu, sigma, normal, eigenvalues - return false if W is too small
     bool reconstruct() {
         if (W < 1e-8f) return false;
 
         mu = S1 / W;
         sigma = S2 / W - mu * mu.transpose();
-        sigma = 0.5 * (sigma + sigma.transpose()); // force symmetric 
+        sigma = 0.5 * (sigma + sigma.transpose()); // force symmetric
 
         Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(sigma);
         if (eig.info() != Eigen::Success) return false;
 
-        Eigen::Vector3f ev = eig.eigenvalues().cwiseMax(1e-8f);
+        eigenvalues = eig.eigenvalues().cwiseMax(1e-8f);
         const Eigen::Matrix3f V = eig.eigenvectors();
-        sigma = V * ev.asDiagonal() * V.transpose();
+        sigma = V * eigenvalues.asDiagonal() * V.transpose();
 
         Eigen::Vector3f n_new = V.col(0);
         if (normal.squaredNorm() > 0.5f && n_new.dot(normal) < 0.0f) {

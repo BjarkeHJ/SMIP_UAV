@@ -7,7 +7,7 @@ SurfelMap::SurfelMap(const Config& cfg) : cfg_(cfg) {
     processor_ = std::make_unique<FrameProcessor>(cfg_.processor_config);
     grid_ = std::make_unique<VoxelGrid>(cfg_.grid_config);
 
-    log_2pi_1_5_ = 1.5f * std::log(2.0f * static_cast<float>(M_PI));
+    log_2pi_1_5_ = 1.5f * std::log(2.0f * static_cast<float>(M_PI)); // 1.5 * log(2pi)
     const float vs = cfg_.grid_config.voxel_size;
     const float V_voxel = vs * vs * vs;
     log_lambda_new_ = std::log(cfg_.pi_spawn) - std::log(V_voxel);
@@ -30,6 +30,7 @@ void SurfelMap::update(const std::vector<PointXYZ>& scan, const Eigen::Isometry3
     if (cfg_.merge_interval > 0 && (frame_count_ % cfg_.merge_interval) == 0) {
         merge();
     }
+
 }
 
 void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const Eigen::Isometry3f& pose, int64_t timestamp_ns) {
@@ -54,7 +55,6 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
             acc.delta_W += wr;
             acc.delta_S1 += wr * fs_w.centroid;
             acc.delta_S2 += wr * (fs_w.centroid * fs_w.centroid.transpose() + fs_w.C_shape);
-            acc.available_weight += w_k; // total evidence this component was tested against
         }
 
         if (r_new > cfg_.spawn_residual) {
@@ -64,8 +64,8 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
 
     // M-Step: Apply accumulated deltas, reconstruct params
     for (auto& [ms_ptr, acc] : accums) {
-        const float gamma = 0.995f;
-        // const float gamma = 1.0f;
+        // const float gamma = 0.995f;
+        const float gamma = 1.0f;
         ms_ptr->W = gamma * ms_ptr->W + acc.delta_W;
         ms_ptr->S1 = gamma * ms_ptr->S1 + acc.delta_S1;
         ms_ptr->S2 = gamma * ms_ptr->S2 + acc.delta_S2;
@@ -77,21 +77,11 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
         updated_ids_.insert(ms_ptr->id);
     }
 
-    // Health update: capture ratio for each tested component
-    for (auto& [ms_ptr, acc] : accums) {
-        if (acc.available_weight < 1e-8f) continue;
-        const float c = acc.delta_W / acc.available_weight;
-        ms_ptr->health = (1.0f - cfg_.health_alpha) * ms_ptr->health + cfg_.health_alpha * c; // EMA
-        ms_ptr->n_eval++;
-    }
-
     // Spawn new
     for (const FrameSurfel& fs_w : spawn_candidates) {
         spawn(fs_w, timestamp_ns);
     }
 
-    // Prune: Remove components that lost competition
-    // prune();
 
     cache_dirty_ = true;
 }
@@ -169,8 +159,6 @@ void SurfelMap::spawn(const FrameSurfel& fs_w, int64_t timestamp_ns) {
     ms.normal = fs_w.normal;
     ms.obs_count = 1;
     ms.last_seen = timestamp_ns;
-    ms.health = 1.0f;
-    ms.n_eval = 0;
 
     const VoxelKey key = grid_->to_key(ms.mu);
     Voxel& voxel = grid_->get_or_create(key);
@@ -180,23 +168,6 @@ void SurfelMap::spawn(const FrameSurfel& fs_w, int64_t timestamp_ns) {
     }
 }
 
-void SurfelMap::prune() {
-    for (auto& [key, voxel] : *grid_) {
-        for (uint8_t i = 0; i < voxel.count; ) {
-            const MapSurfel& ms = voxel.surfels[i];
-            if (ms.n_eval >= cfg_.eval_min && ms.health < cfg_.health_min) {
-                // Delta update tracking
-                deleted_ids_.insert(ms.id);
-                updated_ids_.erase(ms.id);
-
-                voxel.remove_at(i); // swap-and-pop: Dont increment i here
-            }
-            else {
-                ++i;
-            }
-        }
-    }
-}
 
 void SurfelMap::merge() {
     struct MergePair {
@@ -283,8 +254,6 @@ void SurfelMap::merge() {
 
         mp.survivor->obs_count = std::max(mp.survivor->obs_count, victim.obs_count);
         mp.survivor->last_seen = std::max(mp.survivor->last_seen, victim.last_seen);
-        mp.survivor->health = std::max(mp.survivor->health, victim.health);
-        mp.survivor->n_eval = std::max(mp.survivor->n_eval, victim.n_eval);
 
         // Delta update tracking
         removed_ids.insert(victim.id);

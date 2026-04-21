@@ -1,5 +1,7 @@
 waypoints:
   # Straight up (y increasing)
+  - pos: [0, 0, 0]
+    yaw: 0.0
   - pos: [0, 0, 3]
     yaw: 0.0
   - pos: [0, 1, 5]
