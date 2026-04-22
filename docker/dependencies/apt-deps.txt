@@ -1,0 +1,16 @@
+# ==========================================================
+# Development packages (headers + static/shared libs)
+# Installed in the voxl-deps stage for compilation
+# 
+# Rules:
+#   - One package per line
+#   - Comment with where it is needed
+#   - Lines starting with # and blank lines are ignored
+# ==========================================================
+
+# EXAMPLE
+# Package: libopencv-dev needed in: voxl-blabla-package
+# libopencv-dev
+
+# Package: libeigen3-dev needed in: smip_uav
+libeigen3-dev

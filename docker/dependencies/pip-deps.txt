@@ -1,0 +1,13 @@
+# ==========================================================
+# Python packages needed.
+# Installed in both voxl-deps (dev) and voxl-runtime stages.
+#
+# Rules:
+#   - One package per line
+#   - Comment with where it is needed
+#   - Pin versions for reproducibility
+#   - Lines starting with # and blank lines are ignored
+# ==========================================================
+
+# EXAMPLE
+# Package: numpy==1.24.4 needed in: voxl-blabla-package

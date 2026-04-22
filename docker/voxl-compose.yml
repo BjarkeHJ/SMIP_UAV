@@ -1,0 +1,24 @@
+services:
+
+   voxl:
+    image: voxl-drone:runtime-arm64                   # Pre-built slim image
+    container_name: voxl-runtime
+    hostname: voxl-runtime
+    privileged: true
+    network_mode: host
+    ipc: host
+    shm_size: '256mb'
+    volumes:
+      - ./ros2_ws:/ros2_ws                            # Modified ros2_ws containing only required files for runtime
+      - /dev:/dev                                     # Serial ports, cameras, IMU, GPIO
+      - ./cyclonedds.xml:/tmp/cyclonedds.xml
+      - ./entrypoint.sh:/tmp/entrypoint.sh
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=file:///tmp/cyclonedds.xml
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    command: ["ros2", "launch", "ircam_driver", "stereo_ircam_composed.launch.py"]
+    entrypoint: ["/tmp/entrypoint.sh"]
