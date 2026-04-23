@@ -38,9 +38,9 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
 void SurfelMapNode::declare_parameters() {
     this->declare_parameter("global_frame", "odom");
     this->declare_parameter("sensor_tof_frame", "lidar_frame");
-    this->declare_parameter("pointcloud_topic", "/x500/lidar_front/points_raw");
-    // this->declare_parameter("pointcloud_topic", "/tof_pc");
-    this->declare_parameter("simulation", true);
+    // this->declare_parameter("pointcloud_topic", "/x500/lidar_front/points_raw");
+    this->declare_parameter("pointcloud_topic", "/tof_pc");
+    this->declare_parameter("simulation", false);
 
     global_frame_ = this->get_parameter("global_frame").as_string();
     tof_frame_ = this->get_parameter("sensor_tof_frame").as_string();
@@ -63,15 +63,17 @@ bool SurfelMapNode::get_transform(const rclcpp::Time& ts) {
 void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg) {
     // Get current transform
     if (!get_transform(cloud_msg->header.stamp)) {
-        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
-            "Failed to get transform from %s to %s",
-            cloud_msg->header.frame_id.c_str(), global_frame_.c_str()
-        );
-        return;
+        // RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+        //     "Failed to get transform from %s to %s",
+        //     cloud_msg->header.frame_id.c_str(), global_frame_.c_str()
+        // );
+        // return;
     }
     
     rclcpp::Time t_msg = cloud_msg->header.stamp;
     int64_t timestamp_ns = static_cast<int64_t>(t_msg.nanoseconds());
+
+    std::cout << "IN CLOUD SIZE: " << cloud_msg->data.size() << std::endl;
 
     // extract point data
     pts_.clear();
@@ -88,12 +90,18 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
         }
     }
 
+    std::cout << "NUMBER OF POINTS: " << pts_.size() << std::endl;
+
     // Update SurfelMap with points...
     std::vector<FrameSurfel> fsurfels;
     clock_.tic();
     smap_->update(pts_, tf_, timestamp_ns, &fsurfels);
     const double t_update = clock_.toc();
     current_frame_ = smap_->frame();
+
+    std::cout << "NUMBER OF PIXELS IN FRAME: " << current_frame_.to_points().size() << std::endl;
+
+    std::cout << "NUMBER OF SURFELS: " << fsurfels.size() << std::endl;
 
     RCLCPP_INFO(this->get_logger(), "SurfelMap Update Time: %f - Map Size: %ld", t_update, smap_->surfel_count());
 
