@@ -161,7 +161,7 @@ void FrameBuilder::compute_edges(Frame& frame) {
 
             // Horizontal edge: (u,v) -> (u+1,v)
             if (u + 1 < frame.W) {
-                const FramePixel& pr = frame(u,v);
+                const FramePixel& pr = frame(u+1,v);
                 if (pr.valid) {
                     const float r_avg = 0.5f * (px.depth + pr.depth);
                     const float tau = r_avg * pp + config_.edge_depth_min;
@@ -175,7 +175,7 @@ void FrameBuilder::compute_edges(Frame& frame) {
 
             // Vertical edge: (u,v) -> (u,v+1)
             if (v + 1 < frame.H) {
-                const FramePixel& pd = frame(u,v);
+                const FramePixel& pd = frame(u,v+1);
                 if (pd.valid) {
                     const float r_avg = 0.5f * (px.depth + pd.depth);
                     const float tau = r_avg * pp + config_.edge_depth_min;
