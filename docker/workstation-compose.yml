@@ -32,6 +32,7 @@ services:
       target: smip-dev
     image: voxl-smip:dev-arm64
     container_name: smip-dev-arm64
+    platform: linux/arm64
     privileged: true
     network_mode: host
     volumes:
@@ -39,12 +40,14 @@ services:
       - smip-cross-build:/smip_uav_ws/build
       - smip-cross-install:/smip_uav_ws/install
       - smip-cross-log:/smip_uav_ws/log
+      - ./entrypoint.sh:/entrypoint.sh
     environment:
       - DISPLAY=${DISPLAY}
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
       - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
     stdin_open: true
     tty: true
+    entrypoint: ["/entrypoint.sh"]
     command: /bin/bash
 
   extract:

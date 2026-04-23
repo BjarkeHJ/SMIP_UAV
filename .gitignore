@@ -3,6 +3,10 @@ build/
 install/
 log/
 
+# Deploy + generated image file
+deploy/
+*.tar.gz
+
 # Colcon defaults
 .colcon/
 

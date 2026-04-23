@@ -109,7 +109,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 # Third-party apt dependencies (dev packages: headers + libs)
-COPY deps/apt-deps.txt /tmp/apt-deps.txt
+COPY dependencies/apt-deps.txt /tmp/apt-deps.txt
 RUN apt-get update \
   && grep -vE '^\s*#|^\s*$' /tmp/apt-deps.txt \
     | xargs -r apt-get install -y --no-install-recommends \
