@@ -28,27 +28,29 @@ private:
     SurfelMap::Config load_parameters();
     void pointcloud_data_callback(const sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg);
     bool get_transform();
+    void publish_map();
 
-    // std::unique_ptr<FrameBuilder> frame_builder_;
-    // std::unique_ptr<FrameProcessor> frame_processor_;
+    // Surfel map
     std::unique_ptr<SurfelMap> smap_;
 
     // ROS2
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
     std::unique_ptr<tf2_ros::TransformListener> tf_listener_;
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_sub_;
+    rclcpp::TimerBase::SharedPtr pub_timer_;
 
     // Frames, topics, etc
     std::string global_frame_;
     std::string tof_frame_;
     std::string pointcloud_topic_;
-    bool do_viz_{true};
-    double viz_rate_{0.0};
+    double viz_rate_;
+    rclcpp::Time t_msg_;
 
     // Buffers/Variables
     std::vector<PointXYZ> pts_;
     Eigen::Isometry3f tf_;
     Frame current_frame_;
+    std::vector<FrameSurfel> current_frame_surfels_;
     
     // Initial check for Cloud message field offsets
     struct XYZOffsets {

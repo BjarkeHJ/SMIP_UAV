@@ -20,6 +20,9 @@ VoxlTfNode::VoxlTfNode(const rclcpp::NodeOptions& opts)
     tf_broadcaster_      = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
     static_tf_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
 
+    path_pub_ = this->create_publisher<nav_msgs::msg::Path>("/smip/drone_path", rclcpp::SystemDefaultsQoS());
+    path_msg_.header.frame_id = odom_frame_;
+
     publish_static_transforms();
 
     sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
@@ -127,6 +130,18 @@ void VoxlTfNode::odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
     tf.transform.rotation.z = q_flu.z();
 
     tf_broadcaster_->sendTransform(tf);
+
+    geometry_msgs::msg::PoseStamped pose;
+    pose.header.stamp    = msg->header.stamp;
+    pose.header.frame_id = odom_frame_;
+    pose.pose.position.x = tf.transform.translation.x;
+    pose.pose.position.y = tf.transform.translation.y;
+    pose.pose.position.z = tf.transform.translation.z;
+    pose.pose.orientation = tf.transform.rotation;
+
+    path_msg_.header.stamp = msg->header.stamp;
+    path_msg_.poses.push_back(pose);
+    path_pub_->publish(path_msg_);
 }
 
 } // namespace smip_uav

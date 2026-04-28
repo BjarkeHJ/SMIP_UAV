@@ -33,6 +33,14 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
         std::bind(&SurfelMapNode::pointcloud_data_callback, this, std::placeholders::_1)
     );
 
+    // Publish timer
+    if (viz_rate_ > 0.0) {
+        pub_timer_ = this->create_wall_timer(
+            std::chrono::duration<double>(1.0 / viz_rate_),
+            std::bind(&SurfelMapNode::publish_map, this)
+        );
+    }
+
     pts_.reserve(
         (size_t)this->get_parameter("builder.tof_res_x").as_int() *
         (size_t)this->get_parameter("builder.tof_res_y").as_int()
@@ -47,11 +55,13 @@ void SurfelMapNode::declare_parameters() {
     this->declare_parameter("sensor_tof_frame", "tof");
     this->declare_parameter("pointcloud_topic", "/tof_pc");
     this->declare_parameter("simulation", false);
+    this->declare_parameter("visualization_rate", 0.0);
 
     global_frame_     = this->get_parameter("global_frame").as_string();
     tof_frame_        = this->get_parameter("sensor_tof_frame").as_string();
     pointcloud_topic_ = this->get_parameter("pointcloud_topic").as_string();
     is_sim            = this->get_parameter("simulation").as_bool();
+    viz_rate_         = this->get_parameter("visualization_rate").as_double();
 
     // FrameBuilder::Config
     this->declare_parameter("builder.tof_res_x",            (int)180);
@@ -155,8 +165,8 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
         return;
     }
     
-    rclcpp::Time t_msg = cloud_msg->header.stamp;
-    int64_t timestamp_ns = static_cast<int64_t>(t_msg.nanoseconds());
+    t_msg_ = cloud_msg->header.stamp;
+    int64_t timestamp_ns = static_cast<int64_t>(t_msg_.nanoseconds());
 
     // Check for cloud_msg field offsets (first only - or if something changes)
     if (!xyz_off_.valid || cloud_msg->point_step  != cached_point_step_ || cloud_msg->fields.size() != cached_field_count_) {
@@ -196,10 +206,16 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     }
 
     // Update SurfelMap with points...
-    std::vector<FrameSurfel> fsurfels;
-    smap_->update(pts_, tf_, timestamp_ns, &fsurfels);
+    current_frame_surfels_.clear();
+    smap_->update(pts_, tf_, timestamp_ns, &current_frame_surfels_);
     current_frame_ = smap_->frame();
 
+    const double t_update = clock_.toc();
+    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
+        "SurfelMap Update Time (total): %f - Surfels in Frame: %ld - Map Size: %ld", t_update, current_frame_surfels_.size(), smap_->surfel_count());
+}
+
+void SurfelMapNode::publish_map() {
     // Publish visualization
     // depth_ch_.publish(current_frame_, this->get_clock()->now());
     // normal_ch_.publish(current_frame_, this->get_clock()->now());
@@ -209,20 +225,10 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     //     static_cast<uint32_t>(current_frame_.W),
     //     static_cast<uint32_t>(current_frame_.H)}, t_msg);
 
-
-    surfel_ch_.publish(fsurfels, t_msg);
-    
+    surfel_ch_.publish(current_frame_surfels_, t_msg_);
     auto deleted_snapshot = smap_->deleted_ids();
     map_ch_.publish(MapSurfelDelta{smap_->get_updated_surfels(), std::move(deleted_snapshot)}, this->get_clock()->now());
-    
-
-    const double t_update = clock_.toc();
-    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
-        "SurfelMap Update Time (total): %f - Surfels in Frame: %ld - Map Size: %ld", t_update, fsurfels.size(), smap_->surfel_count());
-
 }
-
-
 
 
 } //smip_uav

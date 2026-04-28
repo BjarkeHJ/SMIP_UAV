@@ -9,6 +9,7 @@ TOPICS = [
     '/tf',
     '/tf_static',
     '/smip/map_surfel',
+    '/smip/drone_path',
 ]
 
 def generate_launch_description():
