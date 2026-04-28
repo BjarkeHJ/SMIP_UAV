@@ -6,8 +6,12 @@ services:
     privileged: true
     network_mode: host
     ipc: host
+    cpuset: "4-6"
+    ulimits:
+      rtprio: 40
     volumes:
       - ./smip_uav_ws:/smip_uav_ws
+      - ./data_log:/data_log
       - ./entrypoint.sh:/entrypoint.sh
       - /dev:/dev
     environment:

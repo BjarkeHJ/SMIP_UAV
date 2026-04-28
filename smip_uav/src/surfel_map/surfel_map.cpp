@@ -28,12 +28,12 @@ void SurfelMap::update(const std::vector<PointXYZ>& scan, const Eigen::Isometry3
     std::vector<FrameSurfel> surfels = processor_->process(frame_);
     if (frame_surfels_out) *frame_surfels_out = surfels;
 
-    // integrate(surfels, pose, timestamp_ns);
+    integrate(surfels, pose, timestamp_ns);
 
-    // frame_count_++;
-    // if (cfg_.merge_interval > 0 && (frame_count_ % cfg_.merge_interval) == 0) {
-    //     merge();
-    // }
+    frame_count_++;
+    if (cfg_.merge_interval > 0 && (frame_count_ % cfg_.merge_interval) == 0) {
+        merge();
+    }
 }
 
 void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const Eigen::Isometry3f& pose, int64_t timestamp_ns) {

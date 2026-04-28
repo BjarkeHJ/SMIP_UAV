@@ -9,11 +9,9 @@
 #include <tf2_ros/transform_listener.hpp>
 #include <tf2_eigen/tf2_eigen.hpp>
 #include <unordered_set>
+#include <omp.h>
 
-// #include "surfel_map/frame_builder.hpp"
-// #include "surfel_map/frame_processor.hpp"
 #include "surfel_map/surfel_map.hpp"
-
 #include "common/stop_watch.hpp"
 #include "viz_utils/viz_utils.hpp"
 
@@ -27,8 +25,9 @@ public:
 
 private:
     void declare_parameters();
+    SurfelMap::Config load_parameters();
     void pointcloud_data_callback(const sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg);
-    bool get_transform(const rclcpp::Time& ts);
+    bool get_transform();
 
     // std::unique_ptr<FrameBuilder> frame_builder_;
     // std::unique_ptr<FrameProcessor> frame_processor_;
@@ -51,6 +50,31 @@ private:
     Eigen::Isometry3f tf_;
     Frame current_frame_;
     
+    // Initial check for Cloud message field offsets
+    struct XYZOffsets {
+        uint32_t x{0}, y{0}, z{0};
+        bool valid{false};
+    };
+    static inline XYZOffsets find_xyz_offsets(const sensor_msgs::msg::PointCloud2& cloud) {
+        XYZOffsets off;
+        bool got_x = false, got_y = false, got_z = false;
+
+        for (const auto& f : cloud.fields) {
+            // Require float32
+            if (f.datatype != sensor_msgs::msg::PointField::FLOAT32 || f.count != 1) continue;
+
+            if      (f.name == "x") { off.x = f.offset; got_x = true; }
+            else if (f.name == "y") { off.y = f.offset; got_y = true; }
+            else if (f.name == "z") { off.z = f.offset; got_z = true; }
+        }
+
+        off.valid = got_x && got_y && got_z;
+        return off;
+    }
+    XYZOffsets xyz_off_;
+    uint32_t cached_point_step_{0};
+    size_t cached_field_count_{0};
+
     // Visualization
     std::unique_ptr<Visualizer> viz_;
     VizChannel<Frame, sensor_msgs::msg::Image> depth_ch_;

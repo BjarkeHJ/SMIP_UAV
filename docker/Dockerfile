@@ -85,7 +85,7 @@ FROM ubuntu:22.04 AS smip-runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
-ENV RC_ALL=C.UTF-8
+ENV RC_ALL=LC_ALL
 
 # Setup ROS2 Humble Sources
 RUN apt-get update && apt-get install -y \

@@ -38,9 +38,9 @@ struct VoxelKeyHash {
 };
 
 struct Voxel {
-    static constexpr uint8_t MAX_NUM_SURFELS_PER_VOXLE = 10;
+    static constexpr uint8_t MAX_NUM_SURFELS_PER_VOXEL = 10;
 
-    std::array<MapSurfel, MAX_NUM_SURFELS_PER_VOXLE> surfels;
+    std::array<MapSurfel, MAX_NUM_SURFELS_PER_VOXEL> surfels;
     uint8_t count{0};
 
     // Try to add surfel: Return pointer to added surfel if added - nullptr if full/unable to add. 
@@ -49,7 +49,7 @@ struct Voxel {
     // Remove surfel at index. Return false if index is invalid
     bool remove_at(uint8_t idx);
     
-    bool full() const { return count >= MAX_NUM_SURFELS_PER_VOXLE; }
+    bool full() const { return count >= MAX_NUM_SURFELS_PER_VOXEL; }
     bool empty() const { return  count == 0; }
 
     // Iterable ranger over active surfels
