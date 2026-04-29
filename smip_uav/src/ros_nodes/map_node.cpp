@@ -17,7 +17,7 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
     edge_ch_ = viz_channels::frame_edge(*viz_, tof_frame_, "tof_edge", rclcpp::SensorDataQoS());
     surfel_ch_ = viz_channels::surfels(*viz_, tof_frame_, "tof_surfel", rclcpp::SensorDataQoS());
     superpixel_ch_ = viz_channels::frame_superpixels(*viz_, tof_frame_, "tof_superpixels", rclcpp::SensorDataQoS());
-    map_ch_ = viz_channels::map_surfels_delta(*viz_, global_frame_, "map_surfel", rclcpp::SensorDataQoS());
+    map_ch_ = viz_channels::map_surfels_delta(*viz_, odom_frame_, "map_surfel", rclcpp::SensorDataQoS());
 
     // SurfelMap
     smap_ = std::make_unique<SurfelMap>(load_parameters());
@@ -51,16 +51,18 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
     
 void SurfelMapNode::declare_parameters() {
     // ROS / frame configuration
-    this->declare_parameter("global_frame", "odom");
+    this->declare_parameter("odom_frame", "odom");
     this->declare_parameter("sensor_tof_frame", "tof");
     this->declare_parameter("pointcloud_topic", "/tof_pc");
     this->declare_parameter("simulation", false);
+    this->declare_parameter("tf", false);
     this->declare_parameter("visualization_rate", 0.0);
 
-    global_frame_     = this->get_parameter("global_frame").as_string();
+    odom_frame_       = this->get_parameter("odom_frame").as_string();
     tof_frame_        = this->get_parameter("sensor_tof_frame").as_string();
     pointcloud_topic_ = this->get_parameter("pointcloud_topic").as_string();
     is_sim            = this->get_parameter("simulation").as_bool();
+    external_tf_      = this->get_parameter("tf").as_bool();
     viz_rate_         = this->get_parameter("visualization_rate").as_double();
 
     // FrameBuilder::Config
@@ -69,7 +71,6 @@ void SurfelMapNode::declare_parameters() {
     this->declare_parameter("builder.min_range",            0.3);
     this->declare_parameter("builder.max_range",            10.0);
     this->declare_parameter("builder.pixel_pitch",          0.01071);
-    this->declare_parameter("builder.transpose_input",      true);
     this->declare_parameter("builder.enable_ground_filter", false);
     this->declare_parameter("builder.ground_z_min",         0.01);
     this->declare_parameter("builder.ds_factor",            (int)1);
@@ -109,7 +110,7 @@ SurfelMap::Config SurfelMapNode::load_parameters() {
     b.min_range            = (float)this->get_parameter("builder.min_range").as_double();
     b.max_range            = (float)this->get_parameter("builder.max_range").as_double();
     b.pixel_pitch          = (float)this->get_parameter("builder.pixel_pitch").as_double();
-    b.transpose_input      = this->get_parameter("builder.transpose_input").as_bool();
+    b.transpose_input      = !is_sim;
     b.enable_ground_filter = this->get_parameter("builder.enable_ground_filter").as_bool();
     b.ground_z_min         = (float)this->get_parameter("builder.ground_z_min").as_double();
     b.ds_factor            = (int)this->get_parameter("builder.ds_factor").as_int();
@@ -143,7 +144,7 @@ SurfelMap::Config SurfelMapNode::load_parameters() {
 
 bool SurfelMapNode::get_transform() {
     try {
-        auto transform = tf_buffer_->lookupTransform(global_frame_, tof_frame_, rclcpp::Time(0), rclcpp::Duration::from_seconds(0));        
+        auto transform = tf_buffer_->lookupTransform(odom_frame_, tof_frame_, rclcpp::Time(0), rclcpp::Duration::from_seconds(0));        
         tf_ = tf2::transformToEigen(transform.transform).cast<float>();
         return true;
     }
@@ -158,10 +159,10 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     
     // Get current transform
     if (!get_transform()) {
-        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
-            "Failed to get transform from %s to %s",
-            cloud_msg->header.frame_id.c_str(), global_frame_.c_str()
-        );
+        // RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+        //     "Failed to get transform from %s to %s",
+        //     cloud_msg->header.frame_id.c_str(), odom_frame_.c_str()
+        // );
         return;
     }
     
@@ -184,30 +185,22 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     const uint8_t* data = cloud_msg->data.data();
     const uint32_t step = cloud_msg->point_step;
     const size_t n = cloud_msg->width * cloud_msg->height;
-    if (is_sim) {
-        for (size_t i = 0; i < n; ++i) {
-            const uint8_t* p = data + i * step;
-            float x, y, z;
-            std::memcpy(&x, p + xyz_off_.x, 4);
-            std::memcpy(&y, p + xyz_off_.y, 4);
-            std::memcpy(&z, p + xyz_off_.z, 4);
-            pts_.push_back({x, y, z});
-        }
-    } else {
-        for (size_t i = 0; i < n; ++i) {
-            const uint8_t* p = data + i * step;
-            float x, y, z;
-            std::memcpy(&x, p + xyz_off_.x, 4);
-            std::memcpy(&y, p + xyz_off_.y, 4);
-            std::memcpy(&z, p + xyz_off_.z, 4);
-            // pts_.push_back({z, -x, -y});
-            pts_.push_back({x, y, z});
-        }
+    for (size_t i = 0; i < n; ++i) {
+        const uint8_t* p = data + i * step;
+        float x, y, z;
+        std::memcpy(&x, p + xyz_off_.x, 4);
+        std::memcpy(&y, p + xyz_off_.y, 4);
+        std::memcpy(&z, p + xyz_off_.z, 4);
+        pts_.push_back({x, y, z});
     }
 
-    // Update SurfelMap with points...
-    current_frame_surfels_.clear();
-    smap_->update(pts_, tf_, timestamp_ns, &current_frame_surfels_);
+    // Process scan points into frame surfels...
+    current_frame_surfels_ = smap_->process_scan(pts_, tf_, timestamp_ns);
+
+    // Integrate framesurfels into map
+    smap_->update_map(current_frame_surfels_, tf_, timestamp_ns);
+    
+    // Get current frame (viz)
     current_frame_ = smap_->frame();
 
     const double t_update = clock_.toc();
@@ -217,13 +210,15 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
 
 void SurfelMapNode::publish_map() {
     // Publish visualization
-    // depth_ch_.publish(current_frame_, this->get_clock()->now());
-    // normal_ch_.publish(current_frame_, this->get_clock()->now());
-    // weight_ch_.publish(current_frame_, this->get_clock()->now());
-    // edge_ch_.publish(current_frame_, this->get_clock()->now());
-    // superpixel_ch_.publish(SuperpixelImage{smap_->frame_labels(),
-    //     static_cast<uint32_t>(current_frame_.W),
-    //     static_cast<uint32_t>(current_frame_.H)}, t_msg);
+    if (is_sim) {
+        depth_ch_.publish(current_frame_, this->get_clock()->now());
+        normal_ch_.publish(current_frame_, this->get_clock()->now());
+        weight_ch_.publish(current_frame_, this->get_clock()->now());
+        edge_ch_.publish(current_frame_, this->get_clock()->now());
+        superpixel_ch_.publish(SuperpixelImage{smap_->frame_labels(),
+            static_cast<uint32_t>(current_frame_.W),
+            static_cast<uint32_t>(current_frame_.H)}, this->get_clock()->now());
+    }
 
     surfel_ch_.publish(current_frame_surfels_, t_msg_);
     auto deleted_snapshot = smap_->deleted_ids();

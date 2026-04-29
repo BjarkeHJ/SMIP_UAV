@@ -10,7 +10,7 @@ def generate_launch_description():
 
     config_arg = DeclareLaunchArgument(
         'config_file',
-        default_value=PathJoinSubstitution([pkg_share, 'config', 'smip_uav_voxl_params.param']),
+        default_value=PathJoinSubstitution([pkg_share, 'config', 'smip_uav_sim_params.param']),
         description='Path to the SMIP UAV parameter YAML file',
     )
 

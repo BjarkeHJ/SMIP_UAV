@@ -2,10 +2,13 @@ smip_uav_node:
   ros__parameters:
 
     # ── ROS interface ────────────────────────────────────────────────────────
-    global_frame:       "odom"
-    sensor_tof_frame:   "tof"
-    pointcloud_topic:   "/tof_pc"
-    simulation:         false
+    map_frame:          "map"         # Fixed reference frame after correction
+    odom_frame:         "odom"        # Odometry frame (may drift)
+    sensor_tof_frame:   "tof"         # ToF sensor frame
+    pointcloud_topic:   "/tof_pc"     # Input pointcloud
+
+    simulation:         false         # Running simulation environment
+    tf:                 false         # Complete tf tree available? false if odometry (frd ref)
     visualization_rate: 1.0
 
     # ── FrameBuilder::Config ─────────────────────────────────────────────────
@@ -15,7 +18,6 @@ smip_uav_node:
       min_range:            0.5       # [m] discard points closer than this
       max_range:            6.0       # [m] discard points farther than this
       pixel_pitch:          0.01071   # [rad/px]  0.5*(tan(hfov/2)/(W/2) + tan(vfov/2)/(H/2))
-      transpose_input:      true      # true = real sensor; false = Gz sim (axes swapped)
       enable_ground_filter: true
       ground_z_min:         0.1      # [m] minimum z height kept when ground filter is on
       ds_factor:            1         # spatial downsampling factor (1 = no downsampling)

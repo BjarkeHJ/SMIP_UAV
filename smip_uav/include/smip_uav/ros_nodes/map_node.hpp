@@ -21,7 +21,7 @@ class SurfelMapNode : public rclcpp::Node {
 public:
     explicit SurfelMapNode(const rclcpp::NodeOptions& opts = rclcpp::NodeOptions());
 
-    // Some cross-node interface for getting the map or segment of the map
+    bool use_external_tf() const { return external_tf_; }
 
 private:
     void declare_parameters();
@@ -40,7 +40,7 @@ private:
     rclcpp::TimerBase::SharedPtr pub_timer_;
 
     // Frames, topics, etc
-    std::string global_frame_;
+    std::string odom_frame_;
     std::string tof_frame_;
     std::string pointcloud_topic_;
     double viz_rate_;
@@ -90,7 +90,8 @@ private:
     // Timing
     StopWatch clock_;
 
-    bool is_sim{true};
+    bool is_sim{false};
+    bool external_tf_{false};
 };
 
 } // smip_uav

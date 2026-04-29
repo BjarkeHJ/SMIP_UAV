@@ -37,13 +37,15 @@ public:
     SurfelMap() = default;
     explicit SurfelMap(const Config& cfg);
 
-    void update(const std::vector<PointXYZ>& scan, const Eigen::Isometry3f& pose, int64_t timestamp_ns, std::vector<FrameSurfel>* frame_surfels_out=nullptr);
+    std::vector<FrameSurfel> process_scan(const std::vector<PointXYZ>& scan, const Eigen::Isometry3f& pose, int64_t timestamp_ns);
+    void update_map(const std::vector<FrameSurfel>& frame_surfels, const Eigen::Isometry3f& pose, int64_t timestamp_ns);
 
     const std::vector<MapSurfel*>& get_all_surfels();
     std::vector<MapSurfel*> get_updated_surfels(); // reset after each call
 
     size_t surfel_count() const { return grid_->total_surfel_count(); }
     const Frame& frame() const { return frame_; }
+    const VoxelGrid& grid() const { return *grid_; }
 
     // Per-pixel surfel labels from the last processed frame (-1 = unassigned)
     const std::vector<int32_t>& frame_labels() const { return processor_->labels(); }

@@ -44,9 +44,6 @@ void FrameBuilder::assemble_grid(const std::vector<PointXYZ>& pts, Frame& frame,
             if (z_world < config_.ground_z_min) continue;
         }
  
-        // reject points behind the camera (z axis aligned with view)
-        if (pv.z() <= 0.0f) continue;
-        
         // pixel coords from array index
         size_t u, v;
         if (config_.transpose_input) {

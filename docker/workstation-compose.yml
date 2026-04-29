@@ -19,7 +19,7 @@ services:
     environment:
       - DISPLAY=${DISPLAY}
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
-      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
     stdin_open: true
     tty: true
     entrypoint: ["/entrypoint.sh"]
@@ -44,7 +44,7 @@ services:
     environment:
       - DISPLAY=${DISPLAY}
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
-      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
     stdin_open: true
     tty: true
     entrypoint: ["/entrypoint.sh"]

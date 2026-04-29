@@ -17,18 +17,21 @@ SurfelMap::SurfelMap(const Config& cfg) : cfg_(cfg) {
     merge_normal_cos_ = std::cos(cfg_.merge_normal_k * sigma_n);
 }
 
-void SurfelMap::update(const std::vector<PointXYZ>& scan, const Eigen::Isometry3f& pose, int64_t timestamp_ns, std::vector<FrameSurfel>* frame_surfels_out) {
-    if (scan.empty()) return;
+std::vector<FrameSurfel> SurfelMap::process_scan(const std::vector<PointXYZ>& scan, const Eigen::Isometry3f& pose, int64_t timestamp_ns) {
+    if (scan.empty()) return {};
 
     GroundPlane gnd;
     gnd.normal_z = pose.rotation().transpose() * Eigen::Vector3f::UnitZ();
     gnd.offset_z = -gnd.normal_z.dot(pose.inverse().translation());
     frame_ = builder_->process(scan, timestamp_ns, &gnd);
 
-    std::vector<FrameSurfel> surfels = processor_->process(frame_);
-    if (frame_surfels_out) *frame_surfels_out = surfels;
+    return processor_->process(frame_);
+}
 
-    integrate(surfels, pose, timestamp_ns);
+void SurfelMap::update_map(const std::vector<FrameSurfel>& frame_surfels, const Eigen::Isometry3f& pose, int64_t timestamp_ns) {
+    if (frame_surfels.empty()) return;
+
+    integrate(frame_surfels, pose, timestamp_ns);
 
     frame_count_++;
     if (cfg_.merge_interval > 0 && (frame_count_ % cfg_.merge_interval) == 0) {
