@@ -44,9 +44,6 @@ void FrameBuilder::assemble_grid(const std::vector<PointXYZ>& pts, Frame& frame,
             if (z_world < config_.ground_z_min) continue;
         }
  
-        // reject points behind the camera
-        if (pv.x() <= 0.0f) continue;
-        
         // pixel coords from array index
         size_t u, v;
         if (config_.transpose_input) {
@@ -73,20 +70,22 @@ void FrameBuilder::estimate_normals(Frame& frame) {
     const auto& P = proj_; 
     const float pp = config_.pixel_pitch;
 
+    // Side buffer for avoiding races while setting px validity state flag in parallel
+    std::vector<uint8_t> kill(P.W * P.H, 0);    
+
     // fetch a valid neighbour or nullopt
-    auto fetch_nb = [&](size_t u, size_t v, int du, int dv) -> std::pair<bool, Eigen::Vector3f> {
-        const size_t uu = u + du, vv = v + dv;
-        if (uu >= P.W || vv >= P.H) return {false, {}};
+    auto fetch_nb = [&](float cur_depth, size_t nb_u, size_t nb_v) -> std::pair<bool, Eigen::Vector3f> {
+        if (nb_u >= P.W || nb_v >= P.H) return {false, {}};
         
-        FramePixel& px_uv = frame(u,v);
-        FramePixel& px_uuvv = frame(uu,vv);
-        if (!px_uuvv.valid) return {false, {}};
+        // Neighbor
+        FramePixel& px_nb = frame(nb_u,nb_v);
+        if (!px_nb.valid) return {false, {}};
         
-        const float r_avg = 0.5f * (px_uv.depth + px_uuvv.depth); // average depth
+        const float r_avg = 0.5f * (cur_depth + px_nb.depth); // average depth
         const float tau = 2.0f * r_avg * pp + config_.edge_depth_min; // multiplier of 2 to increase tolerance
-        if (std::fabs(px_uuvv.depth - px_uv.depth) > tau) return {false, {}};
+        if (std::fabs(px_nb.depth - cur_depth) > tau) return {false, {}};
  
-        return {true, px_uuvv.pos3d};
+        return {true, px_nb.pos3d};
     };
  
     // central / forward / backward difference
@@ -97,10 +96,9 @@ void FrameBuilder::estimate_normals(Frame& frame) {
         return {false, {}};
     };
  
-    // const float alpha = 1.0f / (proj_.max_range_sq);
     const float alpha = 1.0f / (config_.max_range);
-    // const float alpha = 1.0f / (config_.min_range);
- 
+    
+    #pragma omp parallel for schedule(static)
     for (size_t v = 0; v < P.H; ++v) {
         for (size_t u = 0; u < P.W; ++u) {
             FramePixel& px = frame(u,v);
@@ -108,21 +106,23 @@ void FrameBuilder::estimate_normals(Frame& frame) {
  
             const Eigen::Vector3f& Pc = px.pos3d;
  
-            auto [okL, Pl] = fetch_nb(u, v, -1,  0);
-            auto [okR, Pr] = fetch_nb(u, v, +1,  0);
-            auto [okU, Pu] = fetch_nb(u, v,  0, -1);
-            auto [okD, Pd] = fetch_nb(u, v,  0, +1);
+            auto [okL, Pl] = fetch_nb(px.depth, u-1, v);
+            auto [okR, Pr] = fetch_nb(px.depth, u+1, v);
+            auto [okU, Pu] = fetch_nb(px.depth, u, v-1);
+            auto [okD, Pd] = fetch_nb(px.depth, u, v+1);
  
             auto [hasU, tu] = finite_diff(okL, Pl, okR, Pr, Pc);
             auto [hasV, tv] = finite_diff(okU, Pu, okD, Pd, Pc);
             if (!hasU || !hasV) {
-                px.valid = false;
+                kill[frame.idx(u,v)] = 1; // set invalid in buffer
+                // px.valid = false;
                 continue;
             }
             Eigen::Vector3f normal = tu.cross(tv);
             const float nn = normal.norm();
             if (nn < 1e-6f) {
-                px.valid = false;
+                kill[frame.idx(u,v)] = 1; // set invalid in buffer
+                // px.valid = false;
                 continue;
             }
             normal /= nn;
@@ -131,12 +131,10 @@ void FrameBuilder::estimate_normals(Frame& frame) {
                 normal = -normal;
  
             // weighting
-            const float r = Pc.norm();
+            const float r = px.depth;
+            const Eigen::Vector3f Pc_unit = Pc * (1.0f / r);   // one multiply, no sqrt
+            const float w_incidence = std::abs(normal.dot(Pc_unit)); // cos of incidence angle
             const float w_range = 1.0f / (1.0f + alpha * r * r);
- 
-            const float cos_inc = std::abs(normal.dot(-Pc.normalized()));
-            // const float w_incidence = std::pow(cos_inc, 0.5f);
-            const float w_incidence = std::pow(cos_inc, 1.0f);
  
             const float un = tu.norm();
             const float vn = tv.norm();
@@ -148,12 +146,18 @@ void FrameBuilder::estimate_normals(Frame& frame) {
             px.weight = w_range * w_incidence * w_quality;
         }
     }
+
+    // Apply the validity state updates
+    for (size_t i = 0; i < kill.size(); ++i) {
+        if (kill[i]) frame.pixels[i].valid = false;
+    }
 }
 
 void FrameBuilder::compute_edges(Frame& frame) {
     const float cos_thresh = std::cos(config_.edge_normal_th);
     const float pp = config_.pixel_pitch;
     
+    #pragma omp parallel for schedule(static)
     for (size_t v = 0; v < frame.H; ++v) {
         for (size_t u = 0; u < frame.W; ++u) {
             const FramePixel& px = frame(u, v);

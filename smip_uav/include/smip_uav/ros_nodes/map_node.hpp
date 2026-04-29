@@ -9,11 +9,9 @@
 #include <tf2_ros/transform_listener.hpp>
 #include <tf2_eigen/tf2_eigen.hpp>
 #include <unordered_set>
+#include <omp.h>
 
-// #include "surfel_map/frame_builder.hpp"
-// #include "surfel_map/frame_processor.hpp"
 #include "surfel_map/surfel_map.hpp"
-
 #include "common/stop_watch.hpp"
 #include "viz_utils/viz_utils.hpp"
 
@@ -23,34 +21,62 @@ class SurfelMapNode : public rclcpp::Node {
 public:
     explicit SurfelMapNode(const rclcpp::NodeOptions& opts = rclcpp::NodeOptions());
 
-    // Some cross-node interface for getting the map or segment of the map
+    bool use_external_tf() const { return external_tf_; }
 
 private:
     void declare_parameters();
+    SurfelMap::Config load_parameters();
     void pointcloud_data_callback(const sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg);
-    bool get_transform(const rclcpp::Time& ts);
+    bool get_transform();
+    void publish_map();
 
-    // std::unique_ptr<FrameBuilder> frame_builder_;
-    // std::unique_ptr<FrameProcessor> frame_processor_;
+    // Surfel map
     std::unique_ptr<SurfelMap> smap_;
 
     // ROS2
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
     std::unique_ptr<tf2_ros::TransformListener> tf_listener_;
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_sub_;
+    rclcpp::TimerBase::SharedPtr pub_timer_;
 
     // Frames, topics, etc
-    std::string global_frame_;
+    std::string odom_frame_;
     std::string tof_frame_;
     std::string pointcloud_topic_;
-    bool do_viz_{true};
-    double viz_rate_{0.0};
+    double viz_rate_;
+    rclcpp::Time t_msg_;
 
     // Buffers/Variables
     std::vector<PointXYZ> pts_;
     Eigen::Isometry3f tf_;
     Frame current_frame_;
+    std::vector<FrameSurfel> current_frame_surfels_;
     
+    // Initial check for Cloud message field offsets
+    struct XYZOffsets {
+        uint32_t x{0}, y{0}, z{0};
+        bool valid{false};
+    };
+    static inline XYZOffsets find_xyz_offsets(const sensor_msgs::msg::PointCloud2& cloud) {
+        XYZOffsets off;
+        bool got_x = false, got_y = false, got_z = false;
+
+        for (const auto& f : cloud.fields) {
+            // Require float32
+            if (f.datatype != sensor_msgs::msg::PointField::FLOAT32 || f.count != 1) continue;
+
+            if      (f.name == "x") { off.x = f.offset; got_x = true; }
+            else if (f.name == "y") { off.y = f.offset; got_y = true; }
+            else if (f.name == "z") { off.z = f.offset; got_z = true; }
+        }
+
+        off.valid = got_x && got_y && got_z;
+        return off;
+    }
+    XYZOffsets xyz_off_;
+    uint32_t cached_point_step_{0};
+    size_t cached_field_count_{0};
+
     // Visualization
     std::unique_ptr<Visualizer> viz_;
     VizChannel<Frame, sensor_msgs::msg::Image> depth_ch_;
@@ -64,7 +90,8 @@ private:
     // Timing
     StopWatch clock_;
 
-    bool is_sim{true};
+    bool is_sim{false};
+    bool external_tf_{false};
 };
 
 } // smip_uav

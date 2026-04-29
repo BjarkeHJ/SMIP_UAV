@@ -29,6 +29,7 @@ RUN apt-get update && apt-get install -y \
 RUN apt-get update && apt-get install -y \
   ros-humble-ros-base \
   ros-humble-rmw-fastrtps-cpp \
+  ros-humble-rmw-cyclonedds-cpp \
   ros-humble-launch-testing \
   ros-humble-ament-cmake \
   && rm -rf /var/lib/apt/lists/*
@@ -76,7 +77,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   sudo \
   && rm -rf /var/lib/apt/lists/*
 
-ENV RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 
 # ==================================================
 # Onboard Runtime Image
@@ -85,7 +86,7 @@ FROM ubuntu:22.04 AS smip-runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
-ENV RC_ALL=C.UTF-8
+ENV RC_ALL=LC_ALL
 
 # Setup ROS2 Humble Sources
 RUN apt-get update && apt-get install -y \

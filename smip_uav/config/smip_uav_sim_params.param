@@ -1,0 +1,59 @@
+smip_uav_node:
+  ros__parameters:
+
+    # ── ROS interface ────────────────────────────────────────────────────────
+    map_frame:          "map"         # Fixed reference frame after correction
+    odom_frame:         "odom"        # Odometry frame (may drift)
+    sensor_tof_frame:   "lidar_frame" # ToF sensor frame
+    pointcloud_topic:   "/x500/lidar_front/points_raw"     # Input pointcloud
+
+    simulation:         true         # Running simulation environment
+    tf:                 true         # Complete tf tree available? false if odometry (frd ref)
+    visualization_rate: 1.0
+
+    # ── FrameBuilder::Config ─────────────────────────────────────────────────
+    builder:
+      tof_res_x:            180       # sensor horizontal resolution (pixels)
+      tof_res_y:            240       # sensor vertical resolution   (pixels)
+      min_range:            0.5       # [m] discard points closer than this
+      max_range:            10.0       # [m] discard points farther than this
+      pixel_pitch:          0.01071   # [rad/px]  0.5*(tan(hfov/2)/(W/2) + tan(vfov/2)/(H/2))
+      enable_ground_filter: true
+      ground_z_min:         0.1      # [m] minimum z height kept when ground filter is on
+      ds_factor:            1         # spatial downsampling factor (1 = no downsampling)
+      edge_normal_th:       0.52      # [rad] normal similarity threshold for edge detection (~30 deg)
+      edge_depth_min:       0.02      # [m]   minimum depth step for edge detection
+
+    # ── FrameProcessor::Config ───────────────────────────────────────────────
+    processor:
+      seed_spacing:         6         # [px] grid spacing between initial superpixel seeds
+      perturb_window:       1         # [px] local window for seed perturbation
+      min_px:               12        # minimum pixels per surfel segment
+      w_spatial:            1.0       # weight of spatial distance in assignment cost
+      w_normal:             1.0       # weight of normal distance in assignment cost
+      max_cluster_dist:     1.0       # maximum assignment cost to join a cluster
+      pixel_pitch:          0.01071   # [rad/px] must match builder.pixel_pitch
+
+    # ── VoxelGrid::Config ────────────────────────────────────────────────────
+    grid:
+      voxel_size:           0.25      # [m] spatial resolution of the map voxels
+      initial_bucket_count: 10000     # hash-map initial bucket reservation
+      max_load_factor:      0.75      # hash-map max load factor before rehash
+
+    # ── SurfelMap::Config (GMM integration) ──────────────────────────────────
+    map:
+      pi_spawn:             0.001     # spawn prior — higher = easier to spawn new surfels
+      spawn_residual:       0.75      # residual threshold r_new to spawn a new surfel
+      gamma_forget:         0.99      # forgetting factor for the M-step weight update
+      normal_sigma:         0.3927    # [rad] std-dev of normal Gaussian (default pi/8)
+      merge_normal_k:       0.5       # merge normal gate at k*sigma (must be < 1.0)
+      merge_mahal_sq:       3.0       # squared Mahalanobis distance threshold for merging
+      merge_interval:       10        # frames between merge passes
+
+
+open_vins_to_tf:
+  ros__parameters:
+    odom_frame:   "odom"
+    body_frame:   "base_link"
+    tof_frame:    "tof"
+    input_topic:  "/ov/odom"

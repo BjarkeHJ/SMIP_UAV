@@ -51,6 +51,16 @@ private:
             sum_outer.setZero();
             count = 0;
         }
+
+        void merge(const SeedAccum& o) {
+            sum_u     += o.sum_u;
+            sum_v     += o.sum_v;
+            sum_pos   += o.sum_pos;
+            sum_nrm   += o.sum_nrm;
+            sum_outer += o.sum_outer;
+            sum_w     += o.sum_w;
+            count     += o.count;
+        }
     };
 
     struct BucketQueue {

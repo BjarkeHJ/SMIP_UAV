@@ -2,7 +2,19 @@ cmake_minimum_required(VERSION 3.8)
 project(smip_uav)
 
 if (CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    add_compile_options(-Wall -Wextra -Wpedantic -O3 -march=native)
+    add_compile_options(-Wall -Wextra -Wpedantic -O3)
+endif()
+
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
+    message("Building for arm64...")
+    add_compile_options(-march=armv8.2-a+simd+crypto+fp16+rcpc+dotprod -mtune=cortex-a77)
+    add_compile_options(-flto -ffast-math -funroll-loops)
+    add_link_options(-flto)
+else()
+    message("Building for x86_64...")
+    add_compile_options(-march=native)
+    add_compile_options(-flto -ffast-math -funroll-loops)
+    add_link_options(-flto)
 endif()
 
 set(CMAKE_CXX_STANDARD 17)
@@ -28,6 +40,7 @@ find_package(visualization_msgs REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(yaml-cpp REQUIRED)
+find_package(OpenMP REQUIRED)
 
 include_directories(
     include/smip_uav
@@ -49,12 +62,14 @@ set(
     tf2_eigen
     sensor_msgs
     geometry_msgs
+    nav_msgs
     visualization_msgs
 )
 add_executable(
     ${SMIP_EXEC}
     src/smip_exec.cpp
     src/ros_nodes/map_node.cpp
+    src/ros_nodes/voxl_tf_node.cpp
     src/surfel_map/frame_builder.cpp
     src/surfel_map/frame_processor.cpp
     src/surfel_map/voxel_grid.cpp
@@ -67,6 +82,7 @@ ament_target_dependencies(
 target_link_libraries(
     ${SMIP_EXEC}
     Eigen3::Eigen
+    OpenMP::OpenMP_CXX
 )
 
 # TrajectoryNode: Action Server for waypoint trajectory interpolation
@@ -93,6 +109,11 @@ target_link_libraries(${TRAJ_EXEC} ${cpp_typesupport_target})
 install(
   TARGETS ${SMIP_EXEC} ${TRAJ_EXEC}
   DESTINATION lib/${PROJECT_NAME}
+)
+
+install(
+  DIRECTORY config launch
+  DESTINATION share/${PROJECT_NAME}
 )
 
 # OPTIONAL: Build test/

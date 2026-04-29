@@ -21,8 +21,8 @@ public:
         float pixel_pitch{0.01071f}; //Radians per pixel -> DIRECTLY FROM SENSOR SPECS: 0.5(tan(hfov/2)/(resx/2) + tan(vfox/2)/resy/2)
         
         // Preprocessing
-        bool transpose_input{false}; // True: Real Sensor data, False: Gz Sim data (message layout order is reversed also)
-        bool enable_ground_filter{true};
+        bool transpose_input{true}; // True: Real Sensor data, False: Gz Sim data (message layout order is reversed also)
+        bool enable_ground_filter{false};
         float ground_z_min{0.01f};
         int ds_factor{1};
 
