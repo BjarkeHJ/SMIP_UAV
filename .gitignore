@@ -19,7 +19,7 @@ __pycache__/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
-Makefile
+
 
 # Python virtual environments (if used)
 venv/
