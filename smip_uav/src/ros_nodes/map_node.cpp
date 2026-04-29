@@ -149,7 +149,7 @@ bool SurfelMapNode::get_transform() {
         return true;
     }
     catch (const tf2::TransformException& ex) {
-        RCLCPP_WARN(this->get_logger(), "TF lookup failed: %s", ex.what());
+        // RCLCPP_WARN(this->get_logger(), "TF lookup failed: %s", ex.what());
         return false;
     }
 }
@@ -159,17 +159,17 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     
     // Get current transform
     if (!get_transform()) {
-        // RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
-        //     "Failed to get transform from %s to %s",
-        //     cloud_msg->header.frame_id.c_str(), odom_frame_.c_str()
-        // );
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+            "Failed to get transform from %s to %s",
+            cloud_msg->header.frame_id.c_str(), odom_frame_.c_str()
+        );
         return;
     }
     
     t_msg_ = cloud_msg->header.stamp;
     int64_t timestamp_ns = static_cast<int64_t>(t_msg_.nanoseconds());
 
-    // Check for cloud_msg field offsets (first only - or if something changes)
+    // Check for cloud_msg field offsets (first only - or if something changes - should not)
     if (!xyz_off_.valid || cloud_msg->point_step  != cached_point_step_ || cloud_msg->fields.size() != cached_field_count_) {
         xyz_off_ = find_xyz_offsets(*cloud_msg);
         cached_point_step_   = cloud_msg->point_step;
