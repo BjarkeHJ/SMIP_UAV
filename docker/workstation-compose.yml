@@ -3,7 +3,7 @@ services:
   dev-amd64:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
       target: smip-dev
     image: voxl-smip:dev-amd64
     container_name: smip-dev-amd64
@@ -25,14 +25,14 @@ services:
     entrypoint: ["/entrypoint.sh"]
     command: ["bash"]
 
-  dev-arm64:
+  cross:
     build:
-      dockerfile: Dockerfile
       context: .
-      target: smip-dev
-    image: voxl-smip:dev-arm64
-    container_name: smip-dev-arm64
-    platform: linux/arm64
+      dockerfile: Dockerfile.cross
+      target: smip-cross
+    image: voxl-smip:cross-amd64
+    container_name: smip-cross
+    platform: linux/amd64
     privileged: true
     network_mode: host
     volumes:
@@ -44,14 +44,13 @@ services:
     environment:
       - DISPLAY=${DISPLAY}
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
     stdin_open: true
     tty: true
     entrypoint: ["/entrypoint.sh"]
     command: /bin/bash
 
   extract:
-    image: voxl-smip:dev-arm64
+    image: voxl-smip:cross-amd64
     container_name: smip-extract
     volumes:
       - smip-cross-install:/install_from:ro
