@@ -53,7 +53,8 @@ smip_uav_node:
 
 open_vins_to_tf:
   ros__parameters:
+    px4_odometry: true
+    input_topic:  "/fmu/out/vehicle_odometry"
     odom_frame:   "odom"
     body_frame:   "base_link"
     tof_frame:    "tof"
-    input_topic:  "/ov/odom"

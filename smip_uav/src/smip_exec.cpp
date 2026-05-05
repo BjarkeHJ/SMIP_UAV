@@ -28,12 +28,16 @@ int main(int argc, char** argv) {
     smip_exec.add_node(map_node);
 
     std::shared_ptr<VoxlTfNode> ov_tf_node;
-    if (!map_node->use_external_tf()) {
-        ov_tf_node = std::make_shared<VoxlTfNode>();
-        smip_exec.add_node(ov_tf_node);
-    }
+    ov_tf_node = std::make_shared<VoxlTfNode>();
+    smip_exec.add_node(ov_tf_node);
+
+    // std::shared_ptr<VoxlTfNode> ov_tf_node;
+    // if (!map_node->use_external_tf()) {
+    //         ov_tf_node = std::make_shared<VoxlTfNode>();
+    //         smip_exec.add_node(ov_tf_node);
+    // }
+        
     // smip_exec.add_node(planner_node);
-    
     smip_exec.spin();
 
     rclcpp::shutdown();

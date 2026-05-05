@@ -13,9 +13,6 @@ namespace smip_uav {
 class SurfelMap {
 public:
     struct Config {
-        // ENTIRE CONFIG - Will branch out
-        FrameBuilder::Config builder_config;
-        FrameProcessor::Config processor_config;
         VoxelGrid::Config grid_config;
 
         // GMM: E-step
@@ -37,18 +34,13 @@ public:
     SurfelMap() = default;
     explicit SurfelMap(const Config& cfg);
 
-    std::vector<FrameSurfel> process_scan(const std::vector<PointXYZ>& scan, const Eigen::Isometry3f& pose, int64_t timestamp_ns);
     void update_map(const std::vector<FrameSurfel>& frame_surfels, const Eigen::Isometry3f& pose, int64_t timestamp_ns);
 
     const std::vector<MapSurfel*>& get_all_surfels();
     std::vector<MapSurfel*> get_updated_surfels(); // reset after each call
 
     size_t surfel_count() const { return grid_->total_surfel_count(); }
-    const Frame& frame() const { return frame_; }
     const VoxelGrid& grid() const { return *grid_; }
-
-    // Per-pixel surfel labels from the last processed frame (-1 = unassigned)
-    const std::vector<int32_t>& frame_labels() const { return processor_->labels(); }
 
     // Incremental viz delta tracking
     const std::unordered_set<uint32_t>& deleted_ids() const { return deleted_ids_; }
@@ -77,13 +69,10 @@ private:
     FrameSurfel transform_surfel_to_world(const FrameSurfel& fs, const Eigen::Isometry3f& pose) const;
     void clear_deltas() { updated_ids_.clear(); deleted_ids_.clear(); };
 
-    // Components
-    std::unique_ptr<FrameBuilder> builder_;
-    std::unique_ptr<FrameProcessor> processor_;
+    // Voxel Grid
     std::unique_ptr<VoxelGrid> grid_;
 
     // Buffers
-    Frame frame_;
     std::vector<MapSurfel*> surfel_cache_;
     bool cache_dirty_{false};
 

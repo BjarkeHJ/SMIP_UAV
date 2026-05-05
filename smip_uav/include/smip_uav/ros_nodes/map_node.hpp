@@ -11,6 +11,9 @@
 #include <unordered_set>
 #include <omp.h>
 
+#include "surfel_map/frame_builder.hpp"
+#include "surfel_map/frame_processor.hpp"
+#include "surfel_map/frame_buffer.hpp"
 #include "surfel_map/surfel_map.hpp"
 #include "common/stop_watch.hpp"
 #include "viz_utils/viz_utils.hpp"
@@ -19,18 +22,37 @@ namespace smip_uav {
 
 class SurfelMapNode : public rclcpp::Node {
 public:
+    struct Config {
+        FrameBuilder::Config fbuild_cfg;
+        FrameProcessor::Config fproc_cfg;
+        // FrameBuffer::Config fbuff_cfg;
+        SurfelMap::Config smap_cfg;
+
+        std::string map_frame;
+        std::string odom_frame;
+        std::string sensor_tof_frame;
+        std::string pointcloud_topic;
+
+        bool is_sim{false};
+        bool has_external_tf{false};
+        float visualization_rate{0.0f};
+    };
+
     explicit SurfelMapNode(const rclcpp::NodeOptions& opts = rclcpp::NodeOptions());
 
-    bool use_external_tf() const { return external_tf_; }
+    bool use_external_tf() const { return cfg_.has_external_tf; }
 
 private:
     void declare_parameters();
-    SurfelMap::Config load_parameters();
+    void load_parameters();
     void pointcloud_data_callback(const sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg);
-    bool get_transform();
+    bool get_transform(const rclcpp::Time& stamp);
+    void process(int64_t timestamp_ns);
     void publish_map();
 
     // Surfel map
+    std::unique_ptr<FrameBuilder> fbuild_;
+    std::unique_ptr<FrameProcessor> fproc_;
     std::unique_ptr<SurfelMap> smap_;
 
     // ROS2
@@ -39,14 +61,11 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_sub_;
     rclcpp::TimerBase::SharedPtr pub_timer_;
 
-    // Frames, topics, etc
-    std::string odom_frame_;
-    std::string tof_frame_;
-    std::string pointcloud_topic_;
-    double viz_rate_;
-    rclcpp::Time t_msg_;
-
+    // Configuration
+    Config cfg_;
+    
     // Buffers/Variables
+    rclcpp::Time t_msg_;
     std::vector<PointXYZ> pts_;
     Eigen::Isometry3f tf_;
     Frame current_frame_;
@@ -89,9 +108,6 @@ private:
 
     // Timing
     StopWatch clock_;
-
-    bool is_sim{false};
-    bool external_tf_{false};
 };
 
 } // smip_uav

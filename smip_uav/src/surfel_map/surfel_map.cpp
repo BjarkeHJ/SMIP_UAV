@@ -3,8 +3,6 @@
 namespace smip_uav {
     
 SurfelMap::SurfelMap(const Config& cfg) : cfg_(cfg) {
-    builder_ = std::make_unique<FrameBuilder>(cfg_.builder_config);
-    processor_ = std::make_unique<FrameProcessor>(cfg_.processor_config);
     grid_ = std::make_unique<VoxelGrid>(cfg_.grid_config);
 
     log_2pi_1_5_ = 1.5f * std::log(2.0f * static_cast<float>(M_PI));
@@ -17,16 +15,7 @@ SurfelMap::SurfelMap(const Config& cfg) : cfg_(cfg) {
     merge_normal_cos_ = std::cos(cfg_.merge_normal_k * sigma_n);
 }
 
-std::vector<FrameSurfel> SurfelMap::process_scan(const std::vector<PointXYZ>& scan, const Eigen::Isometry3f& pose, int64_t timestamp_ns) {
-    if (scan.empty()) return {};
 
-    GroundPlane gnd;
-    gnd.normal_z = pose.rotation().transpose() * Eigen::Vector3f::UnitZ();
-    gnd.offset_z = -gnd.normal_z.dot(pose.inverse().translation());
-    frame_ = builder_->process(scan, timestamp_ns, &gnd);
-
-    return processor_->process(frame_);
-}
 
 void SurfelMap::update_map(const std::vector<FrameSurfel>& frame_surfels, const Eigen::Isometry3f& pose, int64_t timestamp_ns) {
     if (frame_surfels.empty()) return;
