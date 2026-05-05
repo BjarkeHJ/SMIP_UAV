@@ -1,0 +1,139 @@
+
+# ==================================================
+# arm64-rootfs: arm64 ROS2 environment
+#
+# QEMU is used here for apt-get install ONLY (dpkg
+# post-install scripts, no C++ compilation). QEMU is
+# stable for lightweight scripts; the original crash
+# was GCC under QEMU, which we have eliminated by
+# moving all compilation to the native cross-compiler
+# in smip-cross.
+#
+# This stage serves two purposes:
+#   1. Source of arm64 .so / cmake configs for the
+#      cross-compile sysroot in smip-cross.
+#   2. Base image for smip-runtime (the drone image).
+# ==================================================
+FROM --platform=linux/arm64 ros:humble-ros-base AS arm64-rootfs
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ros-humble-rclcpp-action \
+      ros-humble-tf2-ros \
+      ros-humble-tf2-eigen \
+      ros-humble-nav-msgs \
+      ros-humble-visualization-msgs \
+      ros-humble-ament-index-cpp \
+      ros-humble-rmw-fastrtps-cpp \
+      ros-humble-rmw-cyclonedds-cpp \
+      libyaml-cpp-dev \
+      libyaml-cpp0.7 \
+      libgomp1 \
+      python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+
+# ==================================================
+# smip-cross: arm64 cross-compilation environment
+#
+# Runs entirely on linux/amd64 — no QEMU anywhere.
+# COPY from arm64-rootfs builds /opt/arm64-sysroot;
+# aarch64.cmake points cmake there for link-time
+# library resolution. px4_msgs and smip_uav are
+# cross-compiled here natively using aarch64-linux-gnu.
+# ==================================================
+FROM --platform=linux/amd64 ubuntu:22.04 AS smip-cross
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Build the arm64 sysroot from the pre-prepared arm64 image.
+# COPY from an arm64 image does NOT execute any arm64 code.
+# ROS2 cmake export files compute IMPORT_PREFIX relative to their
+# file location, so configs at /opt/arm64-sysroot/opt/ros/humble/share/
+# correctly resolve IMPORTED_LOCATION to arm64 .so files in the sysroot.
+COPY --from=arm64-rootfs /opt/ros/humble /opt/arm64-sysroot/opt/ros/humble
+COPY --from=arm64-rootfs /usr/lib/aarch64-linux-gnu /opt/arm64-sysroot/usr/lib/aarch64-linux-gnu
+COPY --from=arm64-rootfs /lib/aarch64-linux-gnu /opt/arm64-sysroot/lib/aarch64-linux-gnu
+# arm64-specific Python headers: needed so aarch64-linux-gnu-g++ can compile
+# Python C extensions (rosidl_generator_py for px4_msgs).
+# With CMAKE_SYSROOT=/opt/arm64-sysroot, the cross-compiler prepends the sysroot
+# to all standard include paths, so <aarch64-linux-gnu/python3.10/pyconfig.h>
+# must land inside the sysroot, not on the host's /usr/include/.
+COPY --from=arm64-rootfs /usr/include/aarch64-linux-gnu /opt/arm64-sysroot/usr/include/aarch64-linux-gnu
+
+# amd64-only apt sources — no multiarch needed; arm64 libs come from the sysroot.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      locales software-properties-common curl ca-certificates \
+    && locale-gen en_US en_US.UTF-8 \
+    && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 \
+    && add-apt-repository universe \
+    && curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+       -o /usr/share/keyrings/ros-archive-keyring.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+             http://packages.ros.org/ros2/ubuntu jammy main" \
+       | tee /etc/apt/sources.list.d/ros2.list \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+
+# amd64 build tools only — no :arm64 packages, so no apt conflicts.
+# arm64 link-time libraries come from /opt/arm64-sysroot (above).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential cmake git \
+      python3-pip python3-colcon-common-extensions \
+      python3-rosdep python3-vcstool \
+      ros-humble-ros-base ros-humble-ament-cmake \
+      gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN rosdep init || true && rosdep update --rosdistro humble
+
+# apt-deps.txt: header-only / arch:all packages (e.g. libeigen3-dev).
+# Arch-specific arm64 libs are already in the sysroot.
+COPY dependencies/apt-deps.txt /tmp/apt-deps.txt
+RUN apt-get update \
+  && grep -vE '^\s*#|^\s*$' /tmp/apt-deps.txt \
+     | xargs -r apt-get install -y --no-install-recommends \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY dependencies/pip-deps.txt /tmp/pip-deps.txt
+RUN pip3 install --no-cache-dir -r /tmp/pip-deps.txt
+
+# CMake toolchain: cross-compiler + sysroot paths
+COPY aarch64.cmake /opt/aarch64.cmake
+
+# Cross-compile px4_msgs for arm64.
+# CMAKE_PREFIX_PATH=/opt/ros/humble: with PACKAGE BOTH + sysroot=/opt/arm64-sysroot,
+# cmake searches /opt/arm64-sysroot/opt/ros/humble/share/ first → arm64 cmake configs
+# whose IMPORT_PREFIX resolves correctly to arm64 .so files in the sysroot.
+RUN mkdir -p /opt/px4_ws/src \
+    && git clone --depth 1 --branch release/1.14 \
+         https://github.com/PX4/px4_msgs.git /opt/px4_ws/src/px4_msgs \
+    && cd /opt/px4_ws \
+    && . /opt/ros/humble/setup.sh \
+    && colcon build \
+         --cmake-args \
+           -DCMAKE_TOOLCHAIN_FILE=/opt/aarch64.cmake \
+           -DCMAKE_BUILD_TYPE=Release \
+           -DCMAKE_PREFIX_PATH=/opt/ros/humble \
+    && rm -rf build log src
+
+RUN echo "source /opt/px4_ws/install/setup.bash" >> /etc/bash.bashrc
+
+
+# ==================================================
+# smip-runtime: final arm64 image for the drone
+#
+# Based on arm64-rootfs (ROS2 environment already
+# set up). Adds the cross-compiled px4_msgs overlay.
+# Zero C++ compilation. entrypoint.sh runs ldconfig
+# and sources the workspaces on first start.
+# ==================================================
+FROM arm64-rootfs AS smip-runtime
+
+COPY --from=smip-cross /opt/px4_ws/install /opt/px4_ws/install
+
+ENV RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+ENV LANG=C.UTF-8
+
+CMD ["/bin/bash"]
