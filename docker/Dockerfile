@@ -50,16 +50,6 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 # Initialize rosdep
 RUN rosdep init || true && rosdep update --rosdistro humble
 
-# Build px4_msgs as a system-wide overlay
-RUN echo "===== Building PX4 Msgs ====="
-RUN mkdir -p /opt/px4_ws/src \
-  && git clone --depth 1 --branch release/1.14 \
-       https://github.com/PX4/px4_msgs.git /opt/px4_ws/src/px4_msgs \
-  && cd /opt/px4_ws \
-  && . /opt/ros/humble/setup.sh \
-  && colcon build \
-  && rm -rf build log src
-
 # Auto-source the overlay for all shells
 RUN echo "source /opt/px4_ws/install/setup.bash" >> /etc/bash.bashrc
 
@@ -137,7 +127,6 @@ RUN pip3 install --no-cache-dir -r /tmp/pip-deps.txt
 COPY --from=smip-deps /usr/local/lib /usr/local/lib
 COPY --from=smip-deps /usr/local/share/ /usr/local/share
 COPY --from=smip-deps /usr/local/bin /usr/local/bin
-COPY --from=smip-deps /opt/px4_ws/install /opt/px4_ws/install
 
 RUN echo "source /opt/px4_ws/install/setup.bash" >> /etc/bash.bashrc
 

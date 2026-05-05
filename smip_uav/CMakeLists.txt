@@ -42,12 +42,13 @@ find_package(Eigen3 REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(OpenMP REQUIRED)
 
-find_package(px4_msgs REQUIRED)
-
 include_directories(
     include/smip_uav
     ${EIGEN3_INCLUDE_DIRS}
 )
+
+# Build Minimal PX4 Messages 
+
 
 # ACTION: FlightPath
 rosidl_generate_interfaces(${PROJECT_NAME}
@@ -66,8 +67,8 @@ set(
     geometry_msgs
     nav_msgs
     visualization_msgs
-    px4_msgs
 )
+
 add_executable(
     ${SMIP_EXEC}
     src/smip_exec.cpp
