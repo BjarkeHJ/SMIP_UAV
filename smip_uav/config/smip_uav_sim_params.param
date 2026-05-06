@@ -8,7 +8,7 @@ smip_uav_node:
     pointcloud_topic:   "/x500/lidar_front/points_raw"     # Input pointcloud
 
     simulation:         true         # Running simulation environment
-    tf:                 true         # Complete tf tree available? false if odometry (frd ref)
+    tf:                 false        # Complete tf tree available? false if odometry (frd ref)
     visualization_rate: 1.0
 
     # ── FrameBuilder::Config ─────────────────────────────────────────────────
