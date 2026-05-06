@@ -81,9 +81,6 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
 }
 
 float SurfelMap::compute_responsibilities(const FrameSurfel& fs_w, std::vector<RespEntry>& resp_out) {
-    const VoxelKey key = grid_->to_key(fs_w.centroid);
-
-    // collect candidates from center voxel + 6-conn-nbs (modifies resp_out)
     auto search_voxel = [&](Voxel& voxel) {
         for (uint8_t i = 0; i < voxel.count; ++i) {
             MapSurfel& ms = voxel.surfels[i];
@@ -109,8 +106,10 @@ float SurfelMap::compute_responsibilities(const FrameSurfel& fs_w, std::vector<R
         }
     };
 
+    // collect candidates from center voxel + 6-conn-nbs (modifies resp_out)
+    const VoxelKey key = grid_->to_key(fs_w.centroid);
     if (Voxel* v = grid_->get(key)) search_voxel(*v); // search center voxel
-    grid_->for_each_nb6(key, [&](const VoxelKey&, Voxel& v) { search_voxel(v); }); // search nb-6 voxels
+    grid_->for_each_nb26(key, [&](const VoxelKey&, Voxel& v) { search_voxel(v); }); // search nb-6 voxels
     
     if (resp_out.empty()) {
         return 1.0f; // no candidates at all - entire resp goes to spawn

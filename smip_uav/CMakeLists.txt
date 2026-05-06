@@ -77,6 +77,7 @@ add_executable(
     src/ros_nodes/voxl_tf_node.cpp
     src/surfel_map/frame_builder.cpp
     src/surfel_map/frame_processor.cpp
+    src/surfel_map/frame_buffer.cpp
     src/surfel_map/voxel_grid.cpp
     src/surfel_map/surfel_map.cpp
 )

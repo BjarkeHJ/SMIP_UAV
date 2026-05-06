@@ -23,6 +23,7 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
     // Components
     fbuild_ = std::make_unique<FrameBuilder>(cfg_.fbuild_cfg);
     fproc_ = std::make_unique<FrameProcessor>(cfg_.fproc_cfg);
+    fbuff_ = std::make_unique<FrameBuffer>(cfg_.fbuff_cfg);
     smap_ = std::make_unique<SurfelMap>(cfg_.smap_cfg);
 
     // ROS2 TF
@@ -210,15 +211,33 @@ void SurfelMapNode::process(int64_t timestamp_ns) {
     current_frame_surfels_ = fproc_->process(current_frame_);
 
     // Update buffer containing recent local surfels
-    // TODO
+    auto committed = fbuff_->push(current_frame_surfels_, tf_, timestamp_ns);
+    for (auto& c : committed) {
+        smap_->update_map(c.surfels, c.pose, c.timestamp);
+    }
 
     // Update surfel map
     // TODO: UPDATE SO THE OUTPUT FROM BUFFER ENTERS HERE
-    smap_->update_map(current_frame_surfels_, tf_, timestamp_ns);
+    // smap_->update_map(current_frame_surfels_, tf_, timestamp_ns);
 
     const double t_update = clock_.toc();
     RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
-        "SurfelMap Update Time (total): %f - Surfels in Frame: %ld - Map Size: %ld", t_update, current_frame_surfels_.size(), smap_->surfel_count());
+        "SurfelMap Update Time (total): %f - Surfels in Frame: %ld - Map Size: %ld", 
+        t_update, current_frame_surfels_.size(), 
+        smap_->surfel_count()
+    );
+    
+    size_t tracked = 0;
+    for (auto& c : committed) {
+        for (uint8_t sz : c.track_sizes) if (sz >= 2) ++tracked;
+    }
+    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
+        "buffer: %zu/%zu | tracks: %zu | committed tracked %zu/%zu",
+        fbuff_->size(), cfg_.fbuff_cfg.window_size,
+        fbuff_->active_track_count(),
+        tracked, committed[0].surfels.size()
+    );
+
 }
 
 void SurfelMapNode::publish_map() {
@@ -237,6 +256,5 @@ void SurfelMapNode::publish_map() {
     auto deleted_snapshot = smap_->deleted_ids();
     map_ch_.publish(MapSurfelDelta{smap_->get_updated_surfels(), std::move(deleted_snapshot)}, this->get_clock()->now());
 }
-
 
 } //smip_uav

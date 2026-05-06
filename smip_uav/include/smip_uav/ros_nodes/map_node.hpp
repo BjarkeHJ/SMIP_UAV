@@ -25,7 +25,7 @@ public:
     struct Config {
         FrameBuilder::Config fbuild_cfg;
         FrameProcessor::Config fproc_cfg;
-        // FrameBuffer::Config fbuff_cfg;
+        FrameBuffer::Config fbuff_cfg;
         SurfelMap::Config smap_cfg;
 
         std::string map_frame;
@@ -53,6 +53,7 @@ private:
     // Surfel map
     std::unique_ptr<FrameBuilder> fbuild_;
     std::unique_ptr<FrameProcessor> fproc_;
+    std::unique_ptr<FrameBuffer> fbuff_;
     std::unique_ptr<SurfelMap> smap_;
 
     // ROS2
