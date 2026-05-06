@@ -2,13 +2,14 @@
 set -euo pipefail
 
 VOXL_DIR="/voxl_docker"
-RUNTIME_IMAGE="voxl-drone:runtime-arm64"
+COMPOSE_FILE="voxl-compose.yml"
 
 echo "==> Stopping runtime container (if running)..."
-if [ -d "$VOXL_DIR" ]; then
-	cd "$VOXL_DIR" && docker compose down || true
+if [ -f "$VOXL_DIR/$COMPOSE_FILE" ]; then
+	cd "$VOXL_DIR" && docker compose -f "$COMPOSE_FILE" down || true
 else
-	echo "    $VOXL_DIR not found, skipping."
+	echo "    $VOXL_DIR/$COMPOSE_FILE not found, stopping by container name..."
+	docker rm -f smip-voxl-runtime 2>/dev/null || true
 fi
 
 echo ""

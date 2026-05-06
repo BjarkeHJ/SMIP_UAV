@@ -1,10 +1,10 @@
 # ==========================================================================
 # Makefile: Multi-arch, multi-stage build, cross-compile, and deploy
-# 
+#
 # Images:
 # 	dev-amd64		Full dev image (workstation, x86_64)
-# 	dev-arm64		Full dev image (cross-build via QEMU, arm64)
-# 	runtime-arm64	Slim runtime image (drone, arm64)
+# 	crosscompile		x86 image with aarch64 toolchain + arm64 sysroot
+# 	runtime-arm64		Slim runtime image (drone, arm64)
 # ==========================================================================
 
 SHELL := /bin/bash
@@ -46,17 +46,16 @@ help:
 	@echo " setup-build-tools	Setup QEMU user-static and smip-multiarch-builder for arm64 emulation"
 	@echo ""
 	@echo "--- BUILD IMAGES ---"
-	@echo " build-image-deps		Build only the dependency base stage"
 	@echo " build-image-dev		Build the full dev image (native x86_64)"
-	@echo " build-image-cross		Build the full dev image for arm64 via QEMU"
+	@echo " build-image-cross		Build the x86 cross-compile image (aarch64 toolchain + arm64 sysroot)"
 	@echo " build-image-runtime		Build the slim runtime image for arm64"
 	@echo " clean-images			Erase build images, containers, builders, and artifacts"
 	@echo ""
 	@echo "--- DEVELOPMENT ---"
 	@echo " dev-shell			Open a shell in the native x86 dev container"
-	@echo " cross-shell			Open a shell in the arm64 QEMU dev container"
+	@echo " cross-shell			Open a shell in the cross-compile container"
 	@echo " build-ws-dev			Run colcon build in the x86_64 container. Optional PKGS=\"pkg1 pkg2\""
-	@echo " build-ws-cross			Run colcon build in the arm64 container. Optional PKGS=\"pkg1 pkg2\""
+	@echo " build-ws-cross			Run colcon build (aarch64) in the cross-compile container. Optional PKGS=\"pkg1 pkg2\""
 	@echo ""
 	@echo "--- DEPLOY TO DRONE ---"
 	@echo " deploy				Extract cross-built arm64 install and rsync to drone"
@@ -89,20 +88,6 @@ setup-build-tools:
 
 
 # =================== BUILD IMAGES =======================
-.PHONY: build-deps
-build-image-deps:
-	@echo "==> Building dependency base image..."
-	docker buildx build --builder $(BUILDER) \
-		--platform linux/amd64 \
-		--target smip-dev \
-		-f "$(DOCKER_DIR)/Dockerfile" \
-		-t "$(IMAGE_NAME):dev-amd64" \
-		--load \
-		"$(DOCKER_DIR)"
-	@echo "==> Built: $(IMAGE_NAME):dev-amd64"
-	@echo "	Image size:"
-	@docker images "$(IMAGE_NAME):dev-amd64" --format "	{{.Size}}"
-
 .PHONY: build-image-dev
 build-image-dev:
 	@echo "==> Building dev image for native x86_64..."
@@ -119,17 +104,18 @@ build-image-dev:
 
 .PHONY: build-image-cross
 build-image-cross:
-	@echo "==> Building dev image for arm64 via QEMU..."
+	@echo "==> Building x86 cross-compile image (aarch64 toolchain + arm64 sysroot)..."
+	@echo "    Note: smip-sysroot stage builds via QEMU — this will take a while the first time."
 	docker buildx build --builder $(BUILDER) \
-		--platform linux/arm64 \
-		--target smip-dev \
+		--platform linux/amd64 \
+		--target smip-crosscompile \
 		-f "$(DOCKER_DIR)/Dockerfile" \
-		-t "$(IMAGE_NAME):dev-arm64" \
+		-t "$(IMAGE_NAME):crosscompile" \
 		--load \
 		"$(DOCKER_DIR)"
-	@echo "==> Built: $(IMAGE_NAME):dev-arm64"
+	@echo "==> Built: $(IMAGE_NAME):crosscompile"
 	@echo "	Image size:"
-	@docker images "$(IMAGE_NAME):dev-arm64" --format "	{{.Size}}"
+	@docker images "$(IMAGE_NAME):crosscompile" --format "	{{.Size}}"
 
 .PHONY: build-image-runtime
 build-image-runtime:
@@ -173,8 +159,8 @@ dev-shell:
 
 .PHONY: cross-shell
 cross-shell:
-	@echo "==> Starting arm64 cross-build container (QEMU)..."
-	docker compose -f "$(DOCKER_DIR)/workstation-compose.yml" run --rm dev-arm64
+	@echo "==> Starting cross-compile container..."
+	docker compose -f "$(DOCKER_DIR)/workstation-compose.yml" run --rm cross-compile
 
 .PHONY: build-ws-dev
 build-ws-dev:
@@ -186,11 +172,16 @@ build-ws-dev:
 .PHONY: build-ws-cross
 build-ws-cross:
 	$(eval COLCON_ARGS := $(if $(PKGS),--packages-select $(PKGS)))
-	@echo "==> Building ros2 workspace in arm64 container (QEMU)..."
-	docker compose -f "$(DOCKER_DIR)/workstation-compose.yml" run --rm dev-arm64 \
-		bash -c "source /opt/ros/humble/setup.bash && cd $(ROS2_WS) && colcon build $(COLCON_ARGS) --cmake-args '-DCMAKE_BUILD_TYPE=Release' '-DCMAKE_INSTALL_DO_STRIP=ON' --event-handlers console_direct+"
+	@echo "==> Cross-compiling ros2 workspace for aarch64 (native x86 toolchain)..."
+	docker compose -f "$(DOCKER_DIR)/workstation-compose.yml" run --rm cross-compile \
+		bash -c "source /opt/ros/humble/setup.bash && cd $(ROS2_WS) && colcon build $(COLCON_ARGS) \
+			--cmake-args \
+				'-DCMAKE_TOOLCHAIN_FILE=/toolchain.cmake' \
+				'-DCMAKE_BUILD_TYPE=Release' \
+				'-DCMAKE_INSTALL_DO_STRIP=ON' \
+			--event-handlers console_direct+"
 	@echo ""
-	@echo "==> ARM64 binaries built. Run 'make deploy' to deploy to drone."
+	@echo "==> aarch64 binaries built. Run 'make deploy' to deploy to drone."
 
 
 # =================== DEPLOYMENT =======================
