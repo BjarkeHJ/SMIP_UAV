@@ -50,9 +50,6 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 # Initialize rosdep
 RUN rosdep init || true && rosdep update --rosdistro humble
 
-# Auto-source the overlay for all shells
-RUN echo "source /opt/px4_ws/install/setup.bash" >> /etc/bash.bashrc
-
 # Third-party apt dependencies (dev packages: headers + libs)
 RUN echo "===== Building Third-Party apt dependencies ====="
 COPY dependencies/apt-deps.txt /tmp/apt-deps.txt

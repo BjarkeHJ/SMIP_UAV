@@ -47,8 +47,8 @@ include_directories(
     ${EIGEN3_INCLUDE_DIRS}
 )
 
-# Build Minimal PX4 Messages 
-
+# Build Minimal PX4 Messages
+find_package(px4_msgs REQUIRED)
 
 # ACTION: FlightPath
 rosidl_generate_interfaces(${PROJECT_NAME}
@@ -67,6 +67,7 @@ set(
     geometry_msgs
     nav_msgs
     visualization_msgs
+    px4_msgs
 )
 
 add_executable(

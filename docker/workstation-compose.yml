@@ -11,6 +11,7 @@ services:
     network_mode: host
     volumes:
       - ../smip_uav:/smip_uav_ws/src/smip_uav
+      - ../thirdparty:/smip_uav_ws/src/thirdparty
       - ../build:/smip_uav_ws/build
       - ../install:/smip_uav_ws/install
       - ../log:/smip_uav_ws/log
@@ -37,6 +38,7 @@ services:
     network_mode: host
     volumes:
       - ../smip_uav:/smip_uav_ws/src/smip_uav
+      - ../thirdparty:/smip_uav_ws/src/thirdparty
       - smip-cross-build:/smip_uav_ws/build
       - smip-cross-install:/smip_uav_ws/install
       - smip-cross-log:/smip_uav_ws/log
