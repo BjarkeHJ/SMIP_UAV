@@ -26,7 +26,7 @@ smip_uav_node:
 
     # ── FrameProcessor::Config ───────────────────────────────────────────────
     processor:
-      seed_spacing:         6         # [px] grid spacing between initial superpixel seeds
+      seed_spacing:         12        # [px] grid spacing between initial superpixel seeds
       perturb_window:       1         # [px] local window for seed perturbation
       min_px:               12        # minimum pixels per surfel segment
       w_spatial:            1.0       # weight of spatial distance in assignment cost

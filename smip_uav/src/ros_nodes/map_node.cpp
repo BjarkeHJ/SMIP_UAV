@@ -144,7 +144,7 @@ void SurfelMapNode::load_parameters() {
 
 bool SurfelMapNode::get_transform(const rclcpp::Time& stamp) {
     try {
-        auto transform = tf_buffer_->lookupTransform(cfg_.odom_frame, cfg_.sensor_tof_frame, stamp, rclcpp::Duration::from_nanoseconds(20'000'000));
+        auto transform = tf_buffer_->lookupTransform(cfg_.odom_frame, cfg_.sensor_tof_frame, stamp, rclcpp::Duration::from_nanoseconds(10'000'000));
         // auto transform = tf_buffer_->lookupTransform(cfg_.odom_frame, cfg_.sensor_tof_frame, tf2::TimePointZero);
         tf_ = tf2::transformToEigen(transform.transform).cast<float>();
         return true;
@@ -159,7 +159,7 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     // Get current transform
     if (!get_transform(cloud_msg->header.stamp)) {
         RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
-            "Failed to get transform from %s to %s",
+            "Failed to get transform from %s to %s --- Skipping scan...",
             cloud_msg->header.frame_id.c_str(), cfg_.odom_frame.c_str()
         );
         return;

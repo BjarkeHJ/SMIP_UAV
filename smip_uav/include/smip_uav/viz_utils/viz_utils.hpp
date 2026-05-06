@@ -185,6 +185,7 @@ inline visualization_msgs::msg::MarkerArray surfel_to_markers(
     const std::vector<FrameSurfel>& surfels,
     const rclcpp::Time& stamp,
     const std::string& frame_id,
+    float lifetime = 1.0f,
     float scale_factor = 3.0f) {  // 3σ ellipsoid by default
 
     visualization_msgs::msg::MarkerArray ma;
@@ -241,7 +242,7 @@ inline visualization_msgs::msg::MarkerArray surfel_to_markers(
         m.color.b = 0.0f;
         m.color.a = 0.6f;
 
-        m.lifetime = rclcpp::Duration::from_seconds(0.2);
+        m.lifetime = rclcpp::Duration::from_seconds(lifetime); // lifetime could be the same as visualization rate 
 
         ma.markers.push_back(m);
     }

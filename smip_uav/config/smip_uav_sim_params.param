@@ -2,9 +2,9 @@ smip_uav_node:
   ros__parameters:
 
     # ── ROS interface ────────────────────────────────────────────────────────
-    map_frame:          "map"         # Fixed reference frame after correction
-    odom_frame:         "odom"        # Odometry frame (may drift)
-    sensor_tof_frame:   "lidar_frame" # ToF sensor frame
+    map_frame:          "map"           # Fixed reference frame after correction
+    odom_frame:         "odom"          # Odometry frame (may drift)
+    sensor_tof_frame:   "lidar_frame"                      # ToF sensor frame
     pointcloud_topic:   "/x500/lidar_front/points_raw"     # Input pointcloud
 
     simulation:         true         # Running simulation environment
@@ -26,9 +26,9 @@ smip_uav_node:
 
     # ── FrameProcessor::Config ───────────────────────────────────────────────
     processor:
-      seed_spacing:         6         # [px] grid spacing between initial superpixel seeds
+      seed_spacing:         12         # [px] grid spacing between initial superpixel seeds
       perturb_window:       1         # [px] local window for seed perturbation
-      min_px:               12        # minimum pixels per surfel segment
+      min_px:               10        # minimum pixels per surfel segment
       w_spatial:            1.0       # weight of spatial distance in assignment cost
       w_normal:             1.0       # weight of normal distance in assignment cost
       max_cluster_dist:     1.0       # maximum assignment cost to join a cluster
