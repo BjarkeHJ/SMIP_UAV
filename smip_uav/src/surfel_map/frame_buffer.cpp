@@ -110,6 +110,8 @@ CommittedSurfels FrameBuffer::evict_oldest() {
         const int32_t tid = oldest.track_ids[i];
         const uint8_t tsz = (tid < 0) ? uint8_t{1} : static_cast<uint8_t>(track_size_.count(tid) ? track_size_[tid] : uint8_t{1});
 
+        if (tsz < cfg_.M_min) continue; // gate: Surfels has to be tracked for M_min frames
+
         c.surfels.push_back(std::move(oldest.surfels[i]));
         c.track_ids.push_back(tid);
         c.track_sizes.push_back(tsz);
@@ -146,20 +148,22 @@ void FrameBuffer::build_tracks() {
     track_size_.clear();
     if (slots_.empty()) return;
 
+    // refresh world-frame caches and hashes 
     for (auto& bf : slots_) {
         if (bf.cache_dirty) rebuild_frame_cache(bf);
     }
 
+    // reset per-frame track ids; flat node table for union find
     std::vector<size_t> frame_offsets(slots_.size() + 1, 0);
     for (size_t i = 0; i < slots_.size(); ++i) {
         slots_[i].track_ids.assign(slots_[i].surfels.size(), -1);
         frame_offsets[i + 1] = frame_offsets[i] + slots_[i].surfels.size();
     }
-
     const size_t total_nodes = frame_offsets.back();
     if (total_nodes == 0) return;
     UnionFind uf(total_nodes);
 
+    // pairwise matching with mutual-best on
     const float int_vs = 1.0f / cfg_.voxel_size;
 
     auto match_pair = [&](size_t i, size_t j) {
@@ -209,7 +213,7 @@ void FrameBuffer::build_tracks() {
                 }
             }
         }
-
+        // mutual best filter
         const int32_t off_a = static_cast<int32_t>(frame_offsets[i]);
         const int32_t off_b = static_cast<int32_t>(frame_offsets[j]);
         for(size_t ka = 0; ka < Na; ++ka) {
@@ -226,6 +230,7 @@ void FrameBuffer::build_tracks() {
         }
     }
 
+    // resolve canonical track ids; populate track_size_ for evict-time queries
     for (size_t i = 0; i < slots_.size(); ++i) {
         auto& bf = slots_[i];
         for (size_t k = 0; k < bf.surfels.size(); ++k) {

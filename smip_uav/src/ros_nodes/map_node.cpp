@@ -212,14 +212,13 @@ void SurfelMapNode::process(int64_t timestamp_ns) {
 
     // Update buffer containing recent local surfels
     auto committed = fbuff_->push(current_frame_surfels_, tf_, timestamp_ns);
+    
+    // Update SurfelMap with Surfels
     for (auto& c : committed) {
         smap_->update_map(c.surfels, c.pose, c.timestamp);
     }
 
     // Update surfel map
-    // TODO: UPDATE SO THE OUTPUT FROM BUFFER ENTERS HERE
-    // smap_->update_map(current_frame_surfels_, tf_, timestamp_ns);
-
     const double t_update = clock_.toc();
     RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
         "SurfelMap Update Time (total): %f - Surfels in Frame: %ld - Map Size: %ld", 
@@ -227,15 +226,18 @@ void SurfelMapNode::process(int64_t timestamp_ns) {
         smap_->surfel_count()
     );
     
-    size_t tracked = 0;
+    size_t in_count = 0;
+    size_t out_count = 0;
     for (auto& c : committed) {
-        for (uint8_t sz : c.track_sizes) if (sz >= 2) ++tracked;
+        in_count += c.track_sizes.size();
+        out_count += c.surfels.size();
     }
+
     RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
-        "buffer: %zu/%zu | tracks: %zu | committed tracked %zu/%zu",
+        "buffer: %zu/%zu | tracks: %zu | committed: %zu (%.0f%% of pre-fuse)",
         fbuff_->size(), cfg_.fbuff_cfg.window_size,
         fbuff_->active_track_count(),
-        tracked, committed[0].surfels.size()
+        out_count, 100.0 * out_count / std::max<size_t>(1, in_count)
     );
 
 }
