@@ -233,7 +233,13 @@ void SurfelMapNode::process(int64_t timestamp_ns) {
         out_count += c.surfels.size();
     }
 
-    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
+    // RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
+    //     "buffer: %zu/%zu | tracks: %zu | committed: %zu (%.0f%% of pre-fuse)",
+    //     fbuff_->size(), cfg_.fbuff_cfg.window_size,
+    //     fbuff_->active_track_count(),
+    //     out_count, 100.0 * out_count / std::max<size_t>(1, in_count)
+    // );
+    RCLCPP_INFO(this->get_logger(),
         "buffer: %zu/%zu | tracks: %zu | committed: %zu (%.0f%% of pre-fuse)",
         fbuff_->size(), cfg_.fbuff_cfg.window_size,
         fbuff_->active_track_count(),

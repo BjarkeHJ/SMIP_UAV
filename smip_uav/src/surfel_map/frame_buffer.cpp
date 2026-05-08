@@ -1,6 +1,7 @@
 #include "surfel_map/frame_buffer.hpp"
 #include <algorithm>
 #include <numeric>
+#include <iostream>
 
 namespace smip_uav {
 
@@ -51,6 +52,8 @@ inline VoxelKey to_key(const Eigen::Vector3f& p, float inv_vs) {
         static_cast<int32_t>(std::floor(p.z() * inv_vs))
     };
 }
+
+constexpr float kFuseAlpha = 0.005f; // ToF depth noise coeff est.
 
 } // anonymous namespace
 
@@ -106,15 +109,40 @@ CommittedSurfels FrameBuffer::evict_oldest() {
     c.track_ids.reserve(N);
     c.track_sizes.reserve(N);
 
+    std::unordered_set<int32_t> fused_emitted;
+    std::unordered_set<int32_t> attempted;
+
     for (size_t i = 0; i < N; ++i) {
         const int32_t tid = oldest.track_ids[i];
         const uint8_t tsz = (tid < 0) ? uint8_t{1} : static_cast<uint8_t>(track_size_.count(tid) ? track_size_[tid] : uint8_t{1});
-
+        
         if (tsz < cfg_.M_min) continue; // gate: Surfels has to be tracked for M_min frames
 
-        c.surfels.push_back(std::move(oldest.surfels[i]));
-        c.track_ids.push_back(tid);
-        c.track_sizes.push_back(tsz);
+        if (cfg_.enable_fusion && tid >= 0 && tsz >= 2) {
+            if (fused_emitted.count(tid)) {
+                continue; // same track had another member earlier in this frame...
+            }
+
+            if (!attempted.count(tid)) {
+                attempted.insert(tid);
+                FrameSurfel fused;
+                if (fuse_track(tid, fused)) {
+                    c.surfels.push_back(std::move(fused));
+                    c.track_ids.push_back(tid);
+                    c.track_sizes.push_back(tsz);
+                    c.is_fused.push_back(1);
+                    fused_emitted.insert(tid);
+                    continue;
+                }
+                // Fall through to passthrough
+            }
+        }
+
+        // Passthrough
+        // c.surfels.push_back(std::move(oldest.surfels[i]));
+        // c.track_ids.push_back(tid);
+        // c.track_sizes.push_back(tsz);
+        // c.is_fused.push_back(0);
     }
 
     slots_.pop_front();
@@ -146,6 +174,7 @@ void FrameBuffer::rebuild_frame_cache(BufferFrame& bf) {
 
 void FrameBuffer::build_tracks() {
     track_size_.clear();
+    track_members_.clear();
     if (slots_.empty()) return;
 
     // refresh world-frame caches and hashes 
@@ -238,8 +267,10 @@ void FrameBuffer::build_tracks() {
             const int32_t root = uf.find(node);
             const uint16_t sz = uf.size_of(root);
             if (sz < 2) continue;
+
             bf.track_ids[k] = root;
             track_size_[root] = static_cast<uint8_t>(std::min<uint16_t>(sz, 255));
+            track_members_[root].emplace_back(i,k);
         }
     }
 
@@ -251,6 +282,96 @@ bool FrameBuffer::track_confirmed(int32_t track_id) const {
     auto it = track_size_.find(track_id);
     if (it == track_size_.end()) return false;
     return it->second >= cfg_.M_min;
+}
+
+bool FrameBuffer::fuse_track(int32_t track_id, FrameSurfel& out) {
+    fusion_stats_.attempted++;
+
+    auto it = track_members_.find(track_id);
+    if (it == track_members_.end()) {
+        fusion_stats_.fallback_numerical++;
+        return false; // Could not find track_id
+    }
+    const auto& members = it->second;
+    if (members.size() < 2) {
+        fusion_stats_.fallback_numerical++;
+        return false;
+    }
+
+    // anchor at first member's cached world centroid for numerical conditioning
+    const auto& [s0, k0] = members.front();
+    const Eigen::Vector3f anchor = slots_[s0].mu_w[k0];
+
+    // accumulate world-frame moments, anchor-relative
+    float W_acc = 0.0f;
+    Eigen::Vector3f S1 = Eigen::Vector3f::Zero();
+    Eigen::Matrix3f S2 = Eigen::Matrix3f::Zero();
+
+    for (const auto& [si, ki] : members) {
+        const auto& bf = slots_[si];
+        const float w = bf.surfels[ki].weight;
+        if (w < 1e-8f || !std::isfinite(w)) continue;
+
+        const Eigen::Vector3f delta = bf.mu_w[ki] - anchor;
+        W_acc += w;
+        S1 += w * delta;
+        S2 += w * (delta * delta.transpose()) * bf.S_w[ki];
+    }
+    if (W_acc < 1e-6f) {
+        fusion_stats_.fallback_numerical++;
+        return false;
+    }
+
+    const Eigen::Vector3f mu_off = S1 / W_acc;
+    const Eigen::Vector3f mu_w = mu_off + anchor;
+    Eigen::Matrix3f sigma_w = S2 / W_acc - mu_off * mu_off.transpose();
+    sigma_w = 0.5f * (sigma_w + sigma_w.transpose()); // force symm..
+
+    // transform fused result into evicted slots sensor frame
+    const Eigen::Isometry3f& pose_e = slots_.front().pose;
+    const Eigen::Isometry3f T_inv = pose_e.inverse();
+    const Eigen::Matrix3f R_inv = T_inv.rotation();
+    const Eigen::Vector3f mu_s = T_inv * mu_w;
+    Eigen::Matrix3f sigma_s = R_inv * sigma_w * R_inv.transpose();
+    sigma_s = 0.5f * (sigma_s + sigma_s.transpose());
+
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(sigma_s);
+    if (eig.info() != Eigen::Success) {
+        fusion_stats_.fallback_numerical++;
+        return false;
+    }
+
+    const Eigen::Vector3f evals = eig.eigenvalues().cwiseMax(0.0f);
+    const Eigen::Matrix3f evecs = eig.eigenvectors();
+
+    if (evals(1) < 1e-8f) {
+        fusion_stats_.fallback_numerical++;
+        return false;
+    }
+
+    if (evals(0) / evals(1) > cfg_.fusion_planarity_max) {
+        fusion_stats_.fallback_planarity++;
+        return false;
+    }
+
+    Eigen::Vector3f normal = evecs.col(0);
+    if (normal.dot(mu_s) > 0.0f) normal = -normal;
+
+    const float r = mu_s.norm();
+    const float sigma_r = kFuseAlpha * r * r;
+
+    out.sid = 0; // ignored
+    out.centroid = mu_s;
+    out.normal = normal;
+    out.R = sigma_s / W_acc + (sigma_r * sigma_r) * (normal * normal.transpose());
+    out.eigenvalues = evals;
+    out.eigenvectors = evecs;
+    out.C_shape = sigma_s;
+    out.weight = W_acc;
+    out.view_cos_theta = -normal.dot(mu_s.normalized());
+
+    fusion_stats_.succeeded++;
+    return true;
 }
 
 void FrameBuffer::run_ba() {

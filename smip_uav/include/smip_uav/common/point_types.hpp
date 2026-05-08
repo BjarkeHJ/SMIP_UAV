@@ -105,7 +105,7 @@ struct FrameSurfel {
     Eigen::Matrix3f eigenvectors; //                       Eigenvectors
     Eigen::Matrix3f C_shape;     // Geometric covariance
     float weight;
-    float view_cos_theta{90.0f};
+    float view_cos_theta;
 };
 
 struct MapSurfel {
