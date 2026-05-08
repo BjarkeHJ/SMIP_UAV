@@ -145,7 +145,7 @@ void SurfelMapNode::load_parameters() {
 
 bool SurfelMapNode::get_transform(const rclcpp::Time& stamp) {
     try {
-        auto transform = tf_buffer_->lookupTransform(cfg_.odom_frame, cfg_.sensor_tof_frame, stamp, rclcpp::Duration::from_nanoseconds(10'000'000));
+        auto transform = tf_buffer_->lookupTransform(cfg_.odom_frame, cfg_.sensor_tof_frame, stamp, rclcpp::Duration::from_nanoseconds(20'000'000));
         // auto transform = tf_buffer_->lookupTransform(cfg_.odom_frame, cfg_.sensor_tof_frame, tf2::TimePointZero);
         tf_ = tf2::transformToEigen(transform.transform).cast<float>();
         return true;
@@ -211,10 +211,10 @@ void SurfelMapNode::process(int64_t timestamp_ns) {
     current_frame_surfels_ = fproc_->process(current_frame_);
 
     // Update buffer containing recent local surfels
-    auto committed = fbuff_->push(current_frame_surfels_, tf_, timestamp_ns);
-    
+    current_committed_ = fbuff_->push(current_frame_surfels_, tf_, timestamp_ns);
+
     // Update SurfelMap with Surfels
-    for (auto& c : committed) {
+    for (auto& c : current_committed_) {
         smap_->update_map(c.surfels, c.pose, c.timestamp);
     }
 
@@ -226,26 +226,25 @@ void SurfelMapNode::process(int64_t timestamp_ns) {
         smap_->surfel_count()
     );
     
-    size_t in_count = 0;
     size_t out_count = 0;
-    for (auto& c : committed) {
-        in_count += c.track_sizes.size();
+    size_t original_total = 0;
+    for (auto& c : current_committed_) {
         out_count += c.surfels.size();
+        original_total += c.original_count;
     }
 
-    // RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
-    //     "buffer: %zu/%zu | tracks: %zu | committed: %zu (%.0f%% of pre-fuse)",
-    //     fbuff_->size(), cfg_.fbuff_cfg.window_size,
-    //     fbuff_->active_track_count(),
-    //     out_count, 100.0 * out_count / std::max<size_t>(1, in_count)
-    // );
+    const float p_track = original_total > 0 ? 100.0f * out_count / original_total : 0.0f;
     RCLCPP_INFO(this->get_logger(),
-        "buffer: %zu/%zu | tracks: %zu | committed: %zu (%.0f%% of pre-fuse)",
+        "buffer: %zu/%zu | tracks: %zu | committed: %zu/%zu (%.1f%%)",
         fbuff_->size(), cfg_.fbuff_cfg.window_size,
         fbuff_->active_track_count(),
-        out_count, 100.0 * out_count / std::max<size_t>(1, in_count)
+        out_count, original_total,
+        p_track
     );
-
+    if (p_track < 50.0f) {
+        RCLCPP_WARN(this->get_logger(),
+        "TRACK PERCENTAGE BELOW 50 --- (%.1f%%)", p_track);
+    }
 }
 
 void SurfelMapNode::publish_map() {
@@ -260,7 +259,11 @@ void SurfelMapNode::publish_map() {
             static_cast<uint32_t>(current_frame_.H)}, this->get_clock()->now());
     }
 
-    surfel_ch_.publish(current_frame_surfels_, t_msg_);
+    // surfel_ch_.publish(current_frame_surfels_, t_msg_);
+    if (current_committed_.size() == 1) {
+        rclcpp::Time tcomm(current_committed_[0].timestamp);
+        surfel_ch_.publish(current_committed_[0].surfels, tcomm);
+    }
     auto deleted_snapshot = smap_->deleted_ids();
     map_ch_.publish(MapSurfelDelta{smap_->get_updated_surfels(), std::move(deleted_snapshot)}, this->get_clock()->now());
 }

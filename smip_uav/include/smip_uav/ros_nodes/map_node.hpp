@@ -71,7 +71,8 @@ private:
     Eigen::Isometry3f tf_;
     Frame current_frame_;
     std::vector<FrameSurfel> current_frame_surfels_;
-    
+    std::vector<CommittedSurfels> current_committed_;
+
     // Initial check for Cloud message field offsets
     struct XYZOffsets {
         uint32_t x{0}, y{0}, z{0};

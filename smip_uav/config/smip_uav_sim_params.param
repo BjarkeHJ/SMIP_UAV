@@ -18,7 +18,7 @@ smip_uav_node:
       min_range:            0.5       # [m] discard points closer than this
       max_range:            10.0       # [m] discard points farther than this
       pixel_pitch:          0.01071   # [rad/px]  0.5*(tan(hfov/2)/(W/2) + tan(vfov/2)/(H/2))
-      enable_ground_filter: true
+      enable_ground_filter: false
       ground_z_min:         0.1      # [m] minimum z height kept when ground filter is on
       ds_factor:            1         # spatial downsampling factor (1 = no downsampling)
       edge_normal_th:       0.52      # [rad] normal similarity threshold for edge detection (~30 deg)
@@ -26,9 +26,9 @@ smip_uav_node:
 
     # ── FrameProcessor::Config ───────────────────────────────────────────────
     processor:
-      seed_spacing:         12         # [px] grid spacing between initial superpixel seeds
+      seed_spacing:         10         # [px] grid spacing between initial superpixel seeds
       perturb_window:       1         # [px] local window for seed perturbation
-      min_px:               10        # minimum pixels per surfel segment
+      min_px:               12        # minimum pixels per surfel segment
       w_spatial:            1.0       # weight of spatial distance in assignment cost
       w_normal:             1.0       # weight of normal distance in assignment cost
       max_cluster_dist:     1.0       # maximum assignment cost to join a cluster
