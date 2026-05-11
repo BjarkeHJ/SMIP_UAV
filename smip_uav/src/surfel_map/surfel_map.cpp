@@ -88,7 +88,7 @@ float SurfelMap::compute_responsibilities(const FrameSurfel& fs_w, std::vector<R
             // Soft normal penalty: log N(theta; 0, sigma_n) via small-angle approx theta^2 ~ 2(1-cos)
             // Avoids acos in hot path; inv_2_sigma_n_sq_ = 1/(2*sigma_n^2), shared with merge threshold.
             const float dot_n = fs_w.normal.dot(ms.normal);
-            const float log_p_normal = -(1.0f - dot_n) * inv_2_sigma_n_sq_;
+            const float log_p_normal = -2.0f * (1.0f - dot_n) * inv_2_sigma_n_sq_;
 
             const Eigen::Matrix3f M = ms.sigma + fs_w.R;
             const Eigen::LDLT<Eigen::Matrix3f> M_ldlt(M);
@@ -109,7 +109,7 @@ float SurfelMap::compute_responsibilities(const FrameSurfel& fs_w, std::vector<R
     // collect candidates from center voxel + 6-conn-nbs (modifies resp_out)
     const VoxelKey key = grid_->to_key(fs_w.centroid);
     if (Voxel* v = grid_->get(key)) search_voxel(*v); // search center voxel
-    grid_->for_each_nb26(key, [&](const VoxelKey&, Voxel& v) { search_voxel(v); }); // search nb-6 voxels
+    grid_->for_each_nb26(key, [&](const VoxelKey&, Voxel& v) { search_voxel(v); }); // search nb-6 / nb-26 voxels
     
     if (resp_out.empty()) {
         return 1.0f; // no candidates at all - entire resp goes to spawn
@@ -123,14 +123,20 @@ float SurfelMap::compute_responsibilities(const FrameSurfel& fs_w, std::vector<R
     const float log_sum_W = std::log(sum_W + 1e-10f);
     for (auto& e : resp_out) e.log_r_tilde -= log_sum_W;
 
+    // local stick-breaking adjustment to spawn-intensity
+    const float log_stick = std::log(cfg_.spawn_alpha) - std::log(cfg_.spawn_alpha + sum_W);
+    const float log_lambda_new_local = log_lambda_new_ + log_stick;
+
     // find max log value for numerical stability
-    float max_log = log_lambda_new_;
+    // float max_log = log_lambda_new_;
+    float max_log = log_lambda_new_local;
     for (const auto& e : resp_out) {
         max_log = std::max(max_log, e.log_r_tilde);
     }
 
     // exponentiate and sum
-    float sum = std::exp(log_lambda_new_ - max_log); // spawn hypothesis
+    // float sum = std::exp(log_lambda_new_ - max_log); // spawn hypothesis
+    float sum = std::exp(log_lambda_new_local - max_log); // spawn hypothesis
     for (auto& e : resp_out) {
         e.r = std::exp(e.log_r_tilde - max_log);
         sum += e.r;
@@ -142,7 +148,8 @@ float SurfelMap::compute_responsibilities(const FrameSurfel& fs_w, std::vector<R
         e.r *= inv_sum;
     }
 
-    const float r_new = std::exp(log_lambda_new_ - max_log) * inv_sum;
+    // const float r_new = std::exp(log_lambda_new_ - max_log) * inv_sum;
+    const float r_new = std::exp(log_lambda_new_local - max_log) * inv_sum;
     return r_new;
 }
 
@@ -151,9 +158,11 @@ void SurfelMap::spawn(const FrameSurfel& fs_w, int64_t timestamp_ns) {
 
     MapSurfel ms;
     ms.id = next_id_++;
-    ms.W = w;
-    ms.S1 = w * fs_w.centroid;
-    ms.S2 = w * (fs_w.centroid * fs_w.centroid.transpose() + fs_w.C_shape);
+    ms.W = w + cfg_.prior_W;
+    // ms.S1 = w * fs_w.centroid;
+    ms.S1 = w * fs_w.centroid + cfg_.prior_W * fs_w.centroid;
+    // ms.S2 = w * (fs_w.centroid * fs_w.centroid.transpose() + fs_w.C_shape);
+    ms.S2 = w * (fs_w.centroid * fs_w.centroid.transpose() + fs_w.C_shape) + cfg_.prior_W * (fs_w.centroid * fs_w.centroid.transpose() + cfg_.prior_S2_scale);
     ms.mu = fs_w.centroid;
     ms.sigma = fs_w.C_shape;
     ms.normal = fs_w.normal;
@@ -188,9 +197,41 @@ void SurfelMap::merge() {
         VoxelKey victim_key;
         uint8_t victim_idx;
     };
-
     std::vector<MergePair> pairs;
 
+    const float tau_n = 0.1f * cfg_.grid_config.voxel_size;
+    auto should_merge = [&](const MapSurfel& a, const MapSurfel& b) -> bool {
+        // normal alignment
+        if (a.normal.dot(b.normal) < merge_normal_cos_) return false;
+        
+        const Eigen::Vector3f d = a.mu - b.mu;
+
+        // Coplanarity gate
+        const Eigen::Vector3f n_avg = (a.normal + b.normal).normalized();
+        if (std::abs(d.dot(n_avg)) > tau_n) return false;
+
+        // Mahalanobis distance
+        const Eigen::Matrix3f S = a.sigma + b.sigma;
+        const float d2 = d.dot(S.ldlt().solve(d));
+        if (d2 >= cfg_.merge_mahal_sq) return false;
+
+        // Predict merege planarity
+        const float W_new = a.W + b.W;
+        const Eigen::Vector3f mu_new = (a.W * a.mu + b.W * b.mu) / W_new;
+        const Eigen::Vector3f da = a.mu - mu_new;
+        const Eigen::Vector3f db = b.mu - mu_new;
+        const Eigen::Matrix3f sigma_new = (a.W * (a.sigma + da * da.transpose()) + b.W * (b.sigma + db * db.transpose())) / W_new;
+        
+        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(sigma_new);
+        if (eig.info() != Eigen::Success) return false;
+        const auto& ev = eig.eigenvalues();
+        const float planarity_pred = (ev(1) - ev(0)) / (ev(2) + 1e-10f);
+        if (planarity_pred < cfg_.merge_min_planarity) return false;
+
+        return true;
+    };
+
+    // Iterate over all (TODO: maintain active subset)
     for (auto& [key_a, voxel_a] : *grid_) {
 
         // Intra-voxel pairs
@@ -198,13 +239,7 @@ void SurfelMap::merge() {
             for (uint8_t j = i + 1; j < voxel_a.count; ++j) {
                 MapSurfel& a = voxel_a.surfels[i];
                 MapSurfel& b = voxel_a.surfels[j];
-            
-                if (a.normal.dot(b.normal) < merge_normal_cos_) continue;
-
-                const Eigen::Vector3f d = a.mu - b.mu;
-                const Eigen::Matrix3f S = a.sigma + b.sigma;
-                const float d2 = d.dot(S.ldlt().solve(d));
-                if (d2 >= cfg_.merge_mahal_sq) continue;
+                if (!should_merge(a,b)) continue;
 
                 if (a.W >= b.W) {
                     pairs.push_back({&a, key_a, j});
@@ -224,13 +259,7 @@ void SurfelMap::merge() {
                 for (uint8_t j = 0; j < voxel_b.count; ++j) {
                     MapSurfel& a = voxel_a.surfels[i];
                     MapSurfel& b = voxel_b.surfels[j];
-
-                    if (a.normal.dot(b.normal) < merge_normal_cos_) continue;
-
-                    const Eigen::Vector3f d = a.mu - b.mu;
-                    const Eigen::Matrix3f S = a.sigma + b.sigma;
-                    const float d2 = d.dot(S.ldlt().solve(d));
-                    if (d2 >= cfg_.merge_mahal_sq) continue;
+                    if (!should_merge(a,b)) continue;
 
                     if (a.W >= b.W) {
                         pairs.push_back({&a, key_b, j});

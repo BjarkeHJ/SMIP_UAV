@@ -30,7 +30,7 @@ public:
         float voxel_size{0.25f};
         float corr_normal_cos{0.95f};
         float corr_mahal_sq{3.0f};
-        size_t M_min{5};
+        size_t M_min{3};
 
         bool enable_ba{false};
         size_t ba_max_iters{3};
