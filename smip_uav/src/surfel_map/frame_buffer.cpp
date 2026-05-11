@@ -235,10 +235,9 @@ void FrameBuffer::build_tracks() {
         }
     };
 
+    // track only for buffer-adjacent frames
     for (size_t i = 0; i+1 < slots_.size(); ++i) {
-        for (size_t j = i+1; j < slots_.size(); ++j) {
-            match_pair(i, j);
-        }
+        match_pair(i, i+1);
     }
 
     // resolve canonical track ids; count distinct frames per component via bitmask

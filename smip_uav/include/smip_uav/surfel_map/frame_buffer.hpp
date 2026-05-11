@@ -29,7 +29,7 @@ public:
 
         float voxel_size{0.25f};
         float corr_normal_cos{0.95f};
-        float corr_mahal_sq{2.0f};
+        float corr_mahal_sq{3.0f};
         size_t M_min{5};
 
         bool enable_ba{false};

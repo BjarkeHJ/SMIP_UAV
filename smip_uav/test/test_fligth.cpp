@@ -29,9 +29,9 @@ private:
     void send_once();
 
     // std::string path_config_{"forklift.path"};
-    std::string path_config_{"warehouse.path"};
+    // std::string path_config_{"warehouse.path"};
     // std::string path_config_{"tank.path"};
-    // std::string path_config_{"statue_of_liberty.path"};
+    std::string path_config_{"statue_of_liberty.path"};
 
     geometry_msgs::msg::Quaternion yaw2quat(float yaw) {
         geometry_msgs::msg::Quaternion q;
@@ -58,7 +58,7 @@ void TestFlight::send_once() {
     goal.id = 1;
     goal.pos_tol = 0.05f;
     goal.yaw_tol = 0.001f;
-    goal.v_max = 2.0f;
+    goal.v_max = 1.0f;
 
     nav_msgs::msg::Path path;
     path.header.frame_id = frame_id_;

@@ -241,9 +241,9 @@ void SurfelMapNode::process(int64_t timestamp_ns) {
         out_count, original_total,
         p_track
     );
-    if (p_track < 50.0f) {
+    if (p_track < 25.0f) {
         RCLCPP_WARN(this->get_logger(),
-        "TRACK PERCENTAGE BELOW 50 --- (%.1f%%)", p_track);
+        "TRACK PERCENTAGE BELOW 25 --- (%.1f%%)", p_track);
     }
 }
 
