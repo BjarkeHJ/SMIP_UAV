@@ -335,6 +335,7 @@ std::vector<FrameSurfel> FrameProcessor::aggregate() const {
         const Eigen::Vector3f centroid = a.sum_pos / a.sum_w;
         if (!centroid.allFinite()) continue;
 
+        // Weighted cluster covariance (local shape)
         const Eigen::Matrix3f C = a.sum_outer / a.sum_w - centroid * centroid.transpose();
 
         Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(C);
@@ -349,7 +350,9 @@ std::vector<FrameSurfel> FrameProcessor::aggregate() const {
         Eigen::Vector3f normal = evecs.col(0);
         if (normal.dot(centroid) > 0.0f) normal = -normal;
 
-        // Observation uncertainty covariance model
+        // Observation uncertainty covariance model:
+        // First term: Surface estimation uncertainty: Neff increase -> more certain
+        // Second term: range-direction uncertainty: Add a noise along the normal component of the cluster (increased with meaurement range)
         const float Neff = a.sum_w;
         const float r = centroid.norm();
         const float sigma_r = alpha * r * r;
@@ -363,7 +366,7 @@ std::vector<FrameSurfel> FrameProcessor::aggregate() const {
         slots[k].eigenvalues = evals;
         slots[k].eigenvectors = evecs;
         slots[k].C_shape = C;
-        slots[k].weight = Neff;
+        slots[k].weight = Neff / static_cast<float>(a.count); // weight bounded [0,1]
         slots[k].view_cos_theta = -normal.dot(centroid.normalized());
         filled[k] = 1;
     }

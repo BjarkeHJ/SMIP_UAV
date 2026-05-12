@@ -96,8 +96,10 @@ void SurfelMapNode::declare_parameters() {
     this->declare_parameter("grid.max_load_factor",         0.75);
 
     // SurfelMap::Config
+    this->declare_parameter("map.prior_w",                  0.1);
     this->declare_parameter("map.pi_spawn",                 0.005);
     this->declare_parameter("map.spawn_residual",           0.75);
+    this->declare_parameter("map.spawn_alpha",              0.1);
     this->declare_parameter("map.gamma_forget",             0.99);
     this->declare_parameter("map.normal_sigma",             M_PI / 8.0);
     this->declare_parameter("map.merge_normal_k",           0.5);
@@ -129,8 +131,10 @@ void SurfelMapNode::load_parameters() {
     p.pixel_pitch = (float)this->get_parameter("processor.pixel_pitch").as_double();
 
     auto& s = cfg_.smap_cfg;
+    s.prior_W = (float)this->get_parameter("map.prior_w").as_double();
     s.pi_spawn = (float)this->get_parameter("map.pi_spawn").as_double();
     s.spawn_residual = (float)this->get_parameter("map.spawn_residual").as_double();
+    s.spawn_alpha = (float)this->get_parameter("map.spawn_alpha").as_double();
     s.gamma_forget = (float)this->get_parameter("map.gamma_forget").as_double();
     s.normal_sigma = (float)this->get_parameter("map.normal_sigma").as_double();
     s.merge_normal_k = (float)this->get_parameter("map.merge_normal_k").as_double();
@@ -145,8 +149,8 @@ void SurfelMapNode::load_parameters() {
 
 bool SurfelMapNode::get_transform(const rclcpp::Time& stamp) {
     try {
-        auto transform = tf_buffer_->lookupTransform(cfg_.odom_frame, cfg_.sensor_tof_frame, stamp, rclcpp::Duration::from_nanoseconds(20'000'000));
-        // auto transform = tf_buffer_->lookupTransform(cfg_.odom_frame, cfg_.sensor_tof_frame, tf2::TimePointZero);
+        // auto transform = tf_buffer_->lookupTransform(cfg_.odom_frame, cfg_.sensor_tof_frame, stamp, rclcpp::Duration::from_nanoseconds(20'000'000));
+        auto transform = tf_buffer_->lookupTransform(cfg_.odom_frame, cfg_.sensor_tof_frame, tf2::TimePointZero);
         tf_ = tf2::transformToEigen(transform.transform).cast<float>();
         return true;
     }

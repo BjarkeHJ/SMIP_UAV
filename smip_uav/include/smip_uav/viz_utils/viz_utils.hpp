@@ -237,10 +237,16 @@ inline visualization_msgs::msg::MarkerArray surfel_to_markers(
         // m.color.b = std::abs(n.z());
         // m.color.a = 0.6f;
 
-        m.color.r = 0.0f;
-        m.color.g = s.view_cos_theta;
-        m.color.b = 0.0f;
+        // Color by weight: purple -> high, yellow->low
+        m.color.r = s.weight;
+        m.color.g = 1.0f - s.weight;
+        m.color.b = 1.0f;
         m.color.a = 0.6f;
+
+        // m.color.r = 0.0f;
+        // m.color.g = s.view_cos_theta;
+        // m.color.b = 0.0f;
+        // m.color.a = 0.6f;
 
         m.lifetime = rclcpp::Duration::from_seconds(lifetime); // lifetime could be the same as visualization rate 
 
@@ -314,7 +320,8 @@ inline visualization_msgs::msg::MarkerArray map_surfels_to_markers(
         m.color.r = 0.5f * (n.x() + 1.0f);
         m.color.g = 0.5f * (n.y() + 1.0f);
         m.color.b = 0.5f * (n.z() + 1.0f);
-        m.color.a = 0.6f;
+        // m.color.a = 0.6f;
+        m.color.a = s->W;
 
         // m.color.r = s->P.trace();
         // m.color.g = 0.0f;

@@ -15,8 +15,6 @@ SurfelMap::SurfelMap(const Config& cfg) : cfg_(cfg) {
     merge_normal_cos_ = std::cos(cfg_.merge_normal_k * sigma_n);
 }
 
-
-
 void SurfelMap::update_map(const std::vector<FrameSurfel>& frame_surfels, const Eigen::Isometry3f& pose, int64_t timestamp_ns) {
     if (frame_surfels.empty()) return;
 
@@ -60,10 +58,12 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
 
     // M-Step: Apply accumulated deltas, reconstruct params
     const float gamma = cfg_.gamma_forget;
+    const float one_m_gamma = 1.0f - gamma;
     for (auto& [ms_ptr, acc] : accums_) {
-        ms_ptr->W = gamma * ms_ptr->W + acc.delta_W;
-        ms_ptr->S1 = gamma * ms_ptr->S1 + acc.delta_S1;
-        ms_ptr->S2 = gamma * ms_ptr->S2 + acc.delta_S2;
+        ms_ptr->W = gamma * ms_ptr->W + one_m_gamma * acc.delta_W;
+        ms_ptr->S1 = gamma * ms_ptr->S1 + one_m_gamma * acc.delta_S1;
+        ms_ptr->S2 = gamma * ms_ptr->S2 + one_m_gamma * acc.delta_S2;
+
         ms_ptr->reconstruct();
         ms_ptr->obs_count++;
         ms_ptr->last_seen = timestamp_ns;
@@ -90,6 +90,7 @@ float SurfelMap::compute_responsibilities(const FrameSurfel& fs_w, std::vector<R
             const float dot_n = fs_w.normal.dot(ms.normal);
             const float log_p_normal = -2.0f * (1.0f - dot_n) * inv_2_sigma_n_sq_;
 
+            // M: marginal covariance of the observation given the component
             const Eigen::Matrix3f M = ms.sigma + fs_w.R;
             const Eigen::LDLT<Eigen::Matrix3f> M_ldlt(M);
 
@@ -100,7 +101,7 @@ float SurfelMap::compute_responsibilities(const FrameSurfel& fs_w, std::vector<R
             const float log_det_M = M_ldlt.vectorD().array().abs().log().sum();
 
             // log(r~)
-            const float log_r_tilde = std::log(ms.W + 1e-10f) - log_2pi_1_5_ - 0.5f*log_det_M - 0.5f*epsilon + log_p_normal;
+            const float log_r_tilde = std::log(ms.W + 1e-7f) - log_2pi_1_5_ - 0.5f*log_det_M - 0.5f*epsilon + log_p_normal;
 
             resp_out.push_back({&ms, log_r_tilde, 0.0f});
         }
@@ -119,11 +120,16 @@ float SurfelMap::compute_responsibilities(const FrameSurfel& fs_w, std::vector<R
     // log(W_j) -> log(W_j / sum_W), keeping the fixed spawn hypothesis calibrated
     // as the map matures and individual W_j values grow without bound.
     float sum_W = 0.0f;
-    for (const auto& e : resp_out) sum_W += e.component->W;
+    for (const auto& e : resp_out) {
+        sum_W += e.component->W;
+    }
     const float log_sum_W = std::log(sum_W + 1e-10f);
-    for (auto& e : resp_out) e.log_r_tilde -= log_sum_W;
+    for (auto& e : resp_out) {
+        e.log_r_tilde -= log_sum_W;
+    }
 
     // local stick-breaking adjustment to spawn-intensity
+    // Densly mapped area: sum_W goes -> up log_stick goes down
     const float log_stick = std::log(cfg_.spawn_alpha) - std::log(cfg_.spawn_alpha + sum_W);
     const float log_lambda_new_local = log_lambda_new_ + log_stick;
 
@@ -206,13 +212,15 @@ void SurfelMap::merge() {
         
         const Eigen::Vector3f d = a.mu - b.mu;
 
-        // Coplanarity gate
+        // Coplanarity gate (normal direction only)
         const Eigen::Vector3f n_avg = (a.normal + b.normal).normalized();
         if (std::abs(d.dot(n_avg)) > tau_n) return false;
 
-        // Mahalanobis distance
+        // In-plane Mahalanobis distance — project out normal so the near-zero
+        // normal eigenvalue of sigma doesn't dominate and make this gate useless.
+        const Eigen::Vector3f d_tan = d - d.dot(n_avg) * n_avg;
         const Eigen::Matrix3f S = a.sigma + b.sigma;
-        const float d2 = d.dot(S.ldlt().solve(d));
+        const float d2 = d_tan.dot(S.ldlt().solve(d_tan));
         if (d2 >= cfg_.merge_mahal_sq) return false;
 
         // Predict merege planarity

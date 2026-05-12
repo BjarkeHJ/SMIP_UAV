@@ -16,25 +16,25 @@ public:
         VoxelGrid::Config grid_config;
 
         // init
-        float prior_W{0.1f};
+        float prior_W{0.01f};
         Eigen::Matrix3f prior_S2_scale{Eigen::Matrix3f::Identity() * 1e-3f};
 
         // GMM: E-step
         // float pi_spawn{0.005f}; // spawn prior - higher = easier spawn new surfels
         float pi_spawn{0.01f}; // spawn prior - higher = easier spawn new surfels
-        float spawn_residual{0.7f}; // r_new threshold to spawn new surfel
-        float spawn_alpha{10.0f}; // local "stick" concentration
+        float spawn_residual{0.75f}; // r_new threshold to spawn new surfel
+        float spawn_alpha{0.1f}; // local "stick" concentration - must be same order as W*
 
         // M-step
         float gamma_forget{0.99f}; // Forgetting factor
 
         // Normal alignment - shared angular scale for E-step and merge
-        float normal_sigma{static_cast<float>(M_PI) / 12.0f}; // std-dev of normal Gaussian (rad)
-        float merge_normal_k{0.25f}; // merge threshold at k*sigma — must be < E-step 1-sigma
+        float normal_sigma{static_cast<float>(M_PI) / 8.0f}; // std-dev of normal Gaussian (rad)
+        float merge_normal_k{0.5f}; // merge threshold at k*sigma — must be < E-step 1-sigma
         float merge_min_planarity{0.8f};
 
         // Merge
-        float merge_mahal_sq{2.0f}; // mahalanobis threshold for merging
+        float merge_mahal_sq{3.0f}; // mahalanobis threshold for merging
         uint32_t merge_interval{5}; // frames between merge passes
     };
 
