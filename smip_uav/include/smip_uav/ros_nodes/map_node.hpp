@@ -107,6 +107,9 @@ private:
     VizChannel<std::vector<FrameSurfel>, visualization_msgs::msg::MarkerArray> surfel_ch_;
     VizChannel<MapSurfelDelta, visualization_msgs::msg::MarkerArray> map_ch_;
     VizChannel<SuperpixelImage, sensor_msgs::msg::Image> superpixel_ch_;
+    VizChannel<std::vector<TrackedSurfelViz>, sensor_msgs::msg::PointCloud2> track_ch_;
+
+    std::vector<TrackedSurfelViz> current_buffer_viz_;
 
     // Timing
     StopWatch clock_;

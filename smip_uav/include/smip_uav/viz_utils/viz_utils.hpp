@@ -8,9 +8,11 @@
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 #include <unordered_set>
+#include <cstring>
 
 // ==== INCLUDE SUPPORTED DATA TYPES (Custom) ====
 #include "common/point_types.hpp"
+#include "surfel_map/frame_buffer.hpp"
 
 struct SuperpixelImage {
     std::vector<int32_t> labels;
@@ -409,6 +411,89 @@ inline visualization_msgs::msg::MarkerArray map_surfels_to_markers_delta(
     return ma;
 }
 
+// Buffer tracking visualization: surfels from the sliding window colored by track state.
+// Colors (odom/world frame):
+//   gray  — untracked (no mutual-best match)
+//   red   — matched but below M_min gate (not yet committed)
+//   green — confirmed track (>= M_min frames, passes gate)
+inline sensor_msgs::msg::PointCloud2 buffer_tracks_to_cloud(
+    const std::vector<smip_uav::TrackedSurfelViz>& surfels,
+    const rclcpp::Time& stamp,
+    const std::string& frame_id,
+    uint8_t M_min,
+    uint8_t window_size)
+{
+    sensor_msgs::msg::PointCloud2 msg;
+    msg.header.stamp = stamp;
+    msg.header.frame_id = frame_id;
+    msg.height = 1;
+    msg.width  = static_cast<uint32_t>(surfels.size());
+    msg.is_dense = false;
+    msg.is_bigendian = false;
+
+    // Field layout: x(0) y(4) z(8) rgb(12)  →  point_step = 16
+    auto push_field = [&](const std::string& name, uint32_t offset, uint8_t dtype) {
+        sensor_msgs::msg::PointField f;
+        f.name = name; f.offset = offset; f.datatype = dtype; f.count = 1;
+        msg.fields.push_back(f);
+    };
+    push_field("x",   0,  sensor_msgs::msg::PointField::FLOAT32);
+    push_field("y",   4,  sensor_msgs::msg::PointField::FLOAT32);
+    push_field("z",   8,  sensor_msgs::msg::PointField::FLOAT32);
+    push_field("rgb", 12, sensor_msgs::msg::PointField::FLOAT32);
+    msg.point_step = 16;
+    msg.row_step   = msg.point_step * msg.width;
+    msg.data.resize(msg.row_step);
+
+    // Returns packed 0x00RRGGBB as a float (RViz2 rgb field convention)
+    auto make_rgb = [](uint8_t r, uint8_t g, uint8_t b) -> float {
+        uint32_t u = (uint32_t(r) << 16) | (uint32_t(g) << 8) | uint32_t(b);
+        float f; std::memcpy(&f, &u, 4);
+        return f;
+    };
+
+    // Wang hash → hue in [0,1): works for any 32-bit seed, no float precision loss.
+    // HSV S=0.85, V=0.95 gives vivid, distinct colors.
+    auto track_color = [&](int32_t tid, uint8_t ts) -> float {
+        if (ts == 0 || tid < 0) return make_rgb(128, 128, 128);
+        uint32_t h = static_cast<uint32_t>(tid);
+        h = (h ^ 61U) ^ (h >> 16);
+        h *= 9U; h ^= h >> 4; h *= 0x27d4eb2dU; h ^= h >> 15;
+        const float hue = static_cast<float>(h) * (1.0f / 4294967296.0f);
+        const float s = 0.85f, v = 0.95f;
+        const float h6 = hue * 6.0f;
+        const int   hi = static_cast<int>(h6) % 6;
+        const float f  = h6 - static_cast<float>(static_cast<int>(h6));
+        const float p = v * (1.0f - s);
+        const float q = v * (1.0f - s * f);
+        const float t = v * (1.0f - s * (1.0f - f));
+        float r, g, b;
+        switch (hi) {
+            case 0: r=v; g=t; b=p; break;
+            case 1: r=q; g=v; b=p; break;
+            case 2: r=p; g=v; b=t; break;
+            case 3: r=p; g=q; b=v; break;
+            case 4: r=t; g=p; b=v; break;
+            default:r=v; g=p; b=q; break;
+        }
+        return make_rgb(static_cast<uint8_t>(r*255.0f), static_cast<uint8_t>(g*255.0f), static_cast<uint8_t>(b*255.0f));
+    };
+
+    uint8_t* ptr = msg.data.data();
+    for (const auto& sv : surfels) {
+        float x = sv.position_w.x();
+        float y = sv.position_w.y();
+        float z = sv.position_w.z();
+        float rgb = track_color(sv.track_id, sv.track_size);
+        std::memcpy(ptr + 0,  &x,   4);
+        std::memcpy(ptr + 4,  &y,   4);
+        std::memcpy(ptr + 8,  &z,   4);
+        std::memcpy(ptr + 12, &rgb, 4);
+        ptr += 16;
+    }
+    return msg;
+}
+
 } // viz_convs
 
 
@@ -531,6 +616,22 @@ inline VizChannel<MapSurfelDelta, visualization_msgs::msg::MarkerArray> map_surf
     return viz.create<MapSurfelDelta, visualization_msgs::msg::MarkerArray>(subtopic, frame_id, qos,
         [](const MapSurfelDelta& d, const rclcpp::Time& stamp, const std::string& fid) {
             return viz_convs::map_surfels_to_markers_delta(d.dirty, d.deleted, stamp, fid);
+        });
+}
+
+// Sliding-window buffer surfels colored by track length (PointCloud2 in odom frame).
+inline VizChannel<std::vector<smip_uav::TrackedSurfelViz>, sensor_msgs::msg::PointCloud2> buffer_tracks(
+    Visualizer& viz,
+    const std::string& frame_id,
+    const std::string& subtopic,
+    rclcpp::QoS qos,
+    uint8_t M_min,
+    uint8_t window_size
+) {
+    return viz.create<std::vector<smip_uav::TrackedSurfelViz>, sensor_msgs::msg::PointCloud2>(
+        subtopic, frame_id, qos,
+        [M_min, window_size](const std::vector<smip_uav::TrackedSurfelViz>& sv, const rclcpp::Time& stamp, const std::string& fid) {
+            return viz_convs::buffer_tracks_to_cloud(sv, stamp, fid, M_min, window_size);
         });
 }
 

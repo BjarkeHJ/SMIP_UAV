@@ -18,7 +18,11 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
     edge_ch_ = viz_channels::frame_edge(*viz_, cfg_.sensor_tof_frame, "tof_edge", rclcpp::SensorDataQoS());
     surfel_ch_ = viz_channels::surfels(*viz_, cfg_.sensor_tof_frame, "tof_surfel", rclcpp::SensorDataQoS());
     superpixel_ch_ = viz_channels::frame_superpixels(*viz_, cfg_.sensor_tof_frame, "tof_superpixels", rclcpp::SensorDataQoS());
-    map_ch_ = viz_channels::map_surfels_delta(*viz_, cfg_.odom_frame, "map_surfel", rclcpp::SensorDataQoS());
+    map_ch_   = viz_channels::map_surfels_delta(*viz_, cfg_.odom_frame, "map_surfel", rclcpp::SensorDataQoS());
+    track_ch_ = viz_channels::buffer_tracks(*viz_, cfg_.odom_frame, "buffer_tracks",
+        rclcpp::SensorDataQoS(),
+        static_cast<uint8_t>(cfg_.fbuff_cfg.M_min),
+        static_cast<uint8_t>(cfg_.fbuff_cfg.window_size));
 
     // Components
     fbuild_ = std::make_unique<FrameBuilder>(cfg_.fbuild_cfg);
@@ -200,6 +204,13 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     }
 
     process(timestamp_ns);
+
+    // temp
+    track_ch_.publish(current_buffer_viz_, this->get_clock()->now());
+    if (current_committed_.size() == 1) {
+        rclcpp::Time tcomm(current_committed_[0].timestamp);
+        surfel_ch_.publish(current_committed_[0].surfels, tcomm);
+    }
 }
 
 void SurfelMapNode::process(int64_t timestamp_ns) {
@@ -216,6 +227,9 @@ void SurfelMapNode::process(int64_t timestamp_ns) {
 
     // Update buffer containing recent local surfels
     current_committed_ = fbuff_->push(current_frame_surfels_, tf_, timestamp_ns);
+
+    // Snapshot buffer tracking state for visualization
+    current_buffer_viz_ = fbuff_->get_buffer_viz();
 
     // Update SurfelMap with Surfels
     for (auto& c : current_committed_) {
@@ -264,12 +278,13 @@ void SurfelMapNode::publish_map() {
     }
 
     // surfel_ch_.publish(current_frame_surfels_, t_msg_);
-    if (current_committed_.size() == 1) {
-        rclcpp::Time tcomm(current_committed_[0].timestamp);
-        surfel_ch_.publish(current_committed_[0].surfels, tcomm);
-    }
+    // if (current_committed_.size() == 1) {
+    //     rclcpp::Time tcomm(current_committed_[0].timestamp);
+    //     surfel_ch_.publish(current_committed_[0].surfels, tcomm);
+    // }
     auto deleted_snapshot = smap_->deleted_ids();
     map_ch_.publish(MapSurfelDelta{smap_->get_updated_surfels(), std::move(deleted_snapshot)}, this->get_clock()->now());
+    // track_ch_.publish(current_buffer_viz_, this->get_clock()->now());
 }
 
 } //smip_uav

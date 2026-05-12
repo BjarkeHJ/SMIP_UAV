@@ -22,6 +22,13 @@ struct CommittedSurfels {
     size_t original_count{0};
 };
 
+struct TrackedSurfelViz {
+    Eigen::Vector3f position_w;
+    int32_t track_id{-1};    // -1 = untracked
+    uint8_t track_size{0};   // 0 = untracked, otherwise frames spanned
+    uint8_t frame_slot{0};   // index into the sliding window (0 = oldest)
+};
+
 class FrameBuffer {
 public:
     struct Config {
@@ -29,8 +36,8 @@ public:
 
         float voxel_size{0.25f};
         float corr_normal_cos{0.95f};
-        float corr_mahal_sq{3.0f};
-        size_t M_min{3};
+        float corr_mahal_sq{1.0f};
+        size_t M_min{5};
 
         bool enable_ba{false};
         size_t ba_max_iters{3};
@@ -42,7 +49,9 @@ public:
 
     std::vector<CommittedSurfels> push(std::vector<FrameSurfel> surfels, const Eigen::Isometry3f& pose, int64_t timestamp);
     std::vector<CommittedSurfels> flush();
-    
+
+    std::vector<TrackedSurfelViz> get_buffer_viz() const;
+
     size_t size() const { return slots_.size(); }
     bool full() const { return slots_.size() >= cfg_.window_size; }
     bool empty() const { return slots_.empty(); }
@@ -51,7 +60,7 @@ public:
 
 private:
     using SurfelIndexHash = std::unordered_map<VoxelKey, std::vector<uint16_t>, VoxelKeyHash>;
-    using TrackMember = std::pair<size_t, size_t>;
+    using TrackMember = std::pair<uint64_t, size_t>;  // (frame_id, surfel_idx)
 
     struct BufferFrame {
         std::vector<FrameSurfel> surfels;

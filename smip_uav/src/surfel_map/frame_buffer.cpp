@@ -262,11 +262,53 @@ void FrameBuffer::build_tracks() {
 
             bf.track_ids[k] = root;
             track_size_.emplace(root, static_cast<uint8_t>(__builtin_popcountll(component_frame_mask[root])));
-            track_members_[root].emplace_back(i, k);
+            track_members_[root].emplace_back(slots_[i].frame_id, k);
         }
     }
 
     return;
+}
+
+std::vector<TrackedSurfelViz> FrameBuffer::get_buffer_viz() const {
+    std::vector<TrackedSurfelViz> out;
+    for (size_t slot = 0; slot < slots_.size(); ++slot) {
+        const BufferFrame& bf = slots_[slot];
+        if (bf.cache_dirty) continue;
+        for (size_t k = 0; k < bf.mu_w.size(); ++k) {
+            TrackedSurfelViz v;
+            v.position_w = bf.mu_w[k];
+            v.frame_slot = static_cast<uint8_t>(slot);
+            const int32_t tid = bf.track_ids[k];
+            if (tid < 0) {
+                v.track_id   = -1;
+                v.track_size = 0;
+            } else {
+                auto sz_it = track_size_.find(tid);
+                v.track_size = (sz_it != track_size_.end()) ? sz_it->second : uint8_t{1};
+
+                // Stable color seed: anchor on the oldest frame_id + surfel index in
+                // this track so the color doesn't change as the union-find root shifts.
+                auto mem_it = track_members_.find(tid);
+                if (mem_it != track_members_.end() && !mem_it->second.empty()) {
+                    // Anchor on the oldest frame_id in this track — frame_ids are
+                    // assigned once and never shift, so this is stable across evictions.
+                    uint64_t oldest_fid = std::numeric_limits<uint64_t>::max();
+                    size_t   oldest_idx = 0;
+                    for (const auto& [fid, idx] : mem_it->second) {
+                        if (fid < oldest_fid) { oldest_fid = fid; oldest_idx = idx; }
+                    }
+                    // Wang hash — integer-only, no float precision loss
+                    uint32_t h = static_cast<uint32_t>(oldest_fid * 65537ULL + oldest_idx);
+                    h ^= h >> 16; h *= 0x45d9f3bU; h ^= h >> 16;
+                    v.track_id = static_cast<int32_t>(h & 0x7FFFFFFFu);
+                } else {
+                    v.track_id = static_cast<int32_t>(tid);
+                }
+            }
+            out.push_back(v);
+        }
+    }
+    return out;
 }
 
 bool FrameBuffer::track_confirmed(int32_t track_id) const {
