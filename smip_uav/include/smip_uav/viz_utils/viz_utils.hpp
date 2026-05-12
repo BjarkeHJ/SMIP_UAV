@@ -455,7 +455,8 @@ inline sensor_msgs::msg::PointCloud2 buffer_tracks_to_cloud(
     // Wang hash → hue in [0,1): works for any 32-bit seed, no float precision loss.
     // HSV S=0.85, V=0.95 gives vivid, distinct colors.
     auto track_color = [&](int32_t tid, uint8_t ts) -> float {
-        if (ts == 0 || tid < 0) return make_rgb(128, 128, 128);
+        // if (ts == 0 || tid < 0) return make_rgb(128, 128, 128);
+        if (ts < 5 || tid < 0) return make_rgb(128, 128, 128);
         uint32_t h = static_cast<uint32_t>(tid);
         h = (h ^ 61U) ^ (h >> 16);
         h *= 9U; h ^= h >> 4; h *= 0x27d4eb2dU; h ^= h >> 15;
