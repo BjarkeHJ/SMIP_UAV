@@ -35,12 +35,12 @@ public:
         size_t window_size{10};
 
         float voxel_size{0.25f};
-        float corr_normal_cos{0.95f};
-        float corr_mahal_sq{1.0f};
-        size_t M_min{3};
+        float corr_normal_cos{0.9f};
+        float corr_mahal_sq{2.0f};
+        size_t M_min{6};
 
         bool enable_ba{true};
-        size_t ba_max_iters{3};
+        size_t ba_max_iters{10};
     };
 
 

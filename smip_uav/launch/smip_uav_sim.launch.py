@@ -19,7 +19,7 @@ def generate_launch_description():
         executable='smip_uav_node',
         name='smip_uav_node',
         output='screen',
-        parameters=[LaunchConfiguration('config_file')],
+        parameters=[LaunchConfiguration('config_file'), {'use_sim_time': True}],
     )
 
     return LaunchDescription([

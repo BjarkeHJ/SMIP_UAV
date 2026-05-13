@@ -235,7 +235,12 @@ void SurfelMapNode::process(int64_t timestamp_ns) {
 
     // Update surfel map
     const double t_update = clock_.toc();
-    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
+    // RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
+    //     "SurfelMap Update Time (total): %f - Surfels in Frame: %ld - Map Size: %ld", 
+    //     t_update, current_frame_surfels_.size(), 
+    //     smap_->surfel_count()
+    // );
+    RCLCPP_INFO(this->get_logger(),
         "SurfelMap Update Time (total): %f - Surfels in Frame: %ld - Map Size: %ld", 
         t_update, current_frame_surfels_.size(), 
         smap_->surfel_count()
@@ -248,18 +253,18 @@ void SurfelMapNode::process(int64_t timestamp_ns) {
         original_total += c.original_count;
     }
 
-    const float p_track = original_total > 0 ? 100.0f * out_count / original_total : 0.0f;
-    RCLCPP_INFO(this->get_logger(),
-        "buffer: %zu/%zu | tracks: %zu | committed: %zu/%zu (%.1f%%)",
-        fbuff_->size(), cfg_.fbuff_cfg.window_size,
-        fbuff_->active_track_count(),
-        out_count, original_total,
-        p_track
-    );
-    if (p_track < 25.0f) {
-        RCLCPP_WARN(this->get_logger(),
-        "TRACK PERCENTAGE BELOW 25 --- (%.1f%%)", p_track);
-    }
+    // const float p_track = original_total > 0 ? 100.0f * out_count / original_total : 0.0f;
+    // RCLCPP_INFO(this->get_logger(),
+    //     "buffer: %zu/%zu | tracks: %zu | committed: %zu/%zu (%.1f%%)",
+    //     fbuff_->size(), cfg_.fbuff_cfg.window_size,
+    //     fbuff_->active_track_count(),
+    //     out_count, original_total,
+    //     p_track
+    // );
+    // if (p_track < 25.0f) {
+    //     RCLCPP_WARN(this->get_logger(),
+    //     "TRACK PERCENTAGE BELOW 25 --- (%.1f%%)", p_track);
+    // }
 }
 
 void SurfelMapNode::publish_map() {
