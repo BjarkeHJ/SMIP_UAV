@@ -403,6 +403,22 @@ inline visualization_msgs::msg::MarkerArray map_surfels_to_markers_delta(
         m.color.b = 0.5f * (n.z() + 1.0f);
         m.color.a = 0.6f;
 
+
+        // if (s->converged) {
+        //     m.color.r = 1.0f;
+        //     m.color.g = 0.0f;
+        //     m.color.b = 0.0f;
+        //     m.color.a = 0.6f;    
+        // }
+        // else {
+        //     Eigen::Vector3f n = s->normal;
+        //     m.color.r = 0.5f * (n.x() + 1.0f);
+        //     m.color.g = 0.5f * (n.y() + 1.0f);
+        //     m.color.b = 0.5f * (n.z() + 1.0f);
+        //     m.color.a = 0.6f;
+        // }
+
+
         m.lifetime = rclcpp::Duration::from_seconds(0.0);
 
         ma.markers.push_back(m);
@@ -419,9 +435,7 @@ inline visualization_msgs::msg::MarkerArray map_surfels_to_markers_delta(
 inline sensor_msgs::msg::PointCloud2 buffer_tracks_to_cloud(
     const std::vector<smip_uav::TrackedSurfelViz>& surfels,
     const rclcpp::Time& stamp,
-    const std::string& frame_id,
-    uint8_t M_min,
-    uint8_t window_size)
+    const std::string& frame_id)
 {
     sensor_msgs::msg::PointCloud2 msg;
     msg.header.stamp = stamp;
@@ -625,14 +639,12 @@ inline VizChannel<std::vector<smip_uav::TrackedSurfelViz>, sensor_msgs::msg::Poi
     Visualizer& viz,
     const std::string& frame_id,
     const std::string& subtopic,
-    rclcpp::QoS qos,
-    uint8_t M_min,
-    uint8_t window_size
+    rclcpp::QoS qos
 ) {
     return viz.create<std::vector<smip_uav::TrackedSurfelViz>, sensor_msgs::msg::PointCloud2>(
         subtopic, frame_id, qos,
-        [M_min, window_size](const std::vector<smip_uav::TrackedSurfelViz>& sv, const rclcpp::Time& stamp, const std::string& fid) {
-            return viz_convs::buffer_tracks_to_cloud(sv, stamp, fid, M_min, window_size);
+        [](const std::vector<smip_uav::TrackedSurfelViz>& sv, const rclcpp::Time& stamp, const std::string& fid) {
+            return viz_convs::buffer_tracks_to_cloud(sv, stamp, fid);
         });
 }
 

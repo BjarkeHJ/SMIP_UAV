@@ -26,7 +26,8 @@ public:
         float spawn_alpha{0.1f}; // local "stick" concentration - must be same order as W*
 
         // M-step
-        float gamma_forget{0.99f}; // Forgetting factor
+        uint32_t converge_obs_min{10};  // Minimum obs_count before a surfel can be marked converged
+        float converge_planarity{0.75f};// Planarity threshold to mark surfel as converged
 
         // Normal alignment - shared angular scale for E-step and merge
         float normal_sigma{static_cast<float>(M_PI) / 8.0f}; // std-dev of normal Gaussian (rad)

@@ -36,10 +36,10 @@ public:
 
         float voxel_size{0.25f};
         float corr_normal_cos{0.95f};
-        float corr_mahal_sq{2.0f};
-        size_t M_min{5};
+        float corr_mahal_sq{1.0f};
+        size_t M_min{3};
 
-        bool enable_ba{false};
+        bool enable_ba{true};
         size_t ba_max_iters{3};
     };
 

@@ -319,8 +319,87 @@ bool FrameBuffer::track_confirmed(int32_t track_id) const {
 }
 
 void FrameBuffer::run_ba() {
-    //todo
-    return;
+    if (slots_.size() < 2) return;
+
+    BufferFrame& oldest = slots_.front();
+    const uint64_t oldest_fid = oldest.frame_id;
+    const Eigen::Isometry3f T_prior = oldest.pose;
+
+    // Build frame_id -> slot index for anchor lookups
+    std::unordered_map<uint64_t, size_t> fid_to_slot;
+    fid_to_slot.reserve(slots_.size());
+    for (size_t s = 0; s < slots_.size(); ++s)
+        fid_to_slot[slots_[s].frame_id] = s;
+
+    for (size_t iter = 0; iter < cfg_.ba_max_iters; ++iter) {
+        Eigen::Matrix<float, 6, 6> H = Eigen::Matrix<float, 6, 6>::Zero();
+        Eigen::Matrix<float, 6, 1> b = Eigen::Matrix<float, 6, 1>::Zero();
+
+        const Eigen::Matrix3f R0 = oldest.pose.rotation();
+
+        for (size_t i = 0; i < oldest.surfels.size(); ++i) {
+            const int32_t tid = oldest.track_ids[i];
+            if (!track_confirmed(tid)) continue;
+
+            const auto mem_it = track_members_.find(tid);
+            if (mem_it == track_members_.end()) continue;
+
+            const FrameSurfel& si = oldest.surfels[i];
+            const Eigen::Vector3f mu_w  = oldest.pose * si.centroid;
+            const Eigen::Matrix3f S_0_w = R0 * si.C_shape * R0.transpose();
+
+            for (const auto& [anchor_fid, anchor_idx] : mem_it->second) {
+                if (anchor_fid == oldest_fid) continue;
+
+                const auto slot_it = fid_to_slot.find(anchor_fid);
+                if (slot_it == fid_to_slot.end()) continue;
+
+                const BufferFrame& abf = slots_[slot_it->second];
+                if (abf.cache_dirty) continue;
+
+                const Eigen::Vector3f& n_j  = abf.n_w[anchor_idx];
+                const Eigen::Vector3f& mu_j = abf.mu_w[anchor_idx];
+                const Eigen::Matrix3f& S_j  = abf.S_w[anchor_idx];
+
+                const float r = n_j.dot(mu_w - mu_j);
+
+                // Project combined anisotropic covariance onto normal axis
+                const float sigma2 = n_j.dot((S_0_w + S_j) * n_j);
+                if (sigma2 < 1e-10f) continue;
+                const float w = 1.0f / sigma2;
+
+                // J = [n_j^T,  (mu_w x n_j)^T]   (left SE3 perturbation)
+                Eigen::Matrix<float, 1, 6> J;
+                J.head<3>() = n_j.transpose();
+                J.tail<3>() = mu_w.cross(n_j).transpose();
+
+                H.noalias() += w * J.transpose() * J;
+                b.noalias() += w * J.transpose() * r;
+            }
+        }
+
+        // Tikhonov regularisation in case of rank-deficient geometry
+        H.diagonal().array() += 1e-6f;
+
+        const Eigen::Matrix<float, 6, 1> dx = H.ldlt().solve(-b);
+
+        // SE3 left update: T_new = Exp(dx) * T_cur
+        const Eigen::Vector3f dphi = dx.tail<3>();
+        const float angle = dphi.norm();
+        Eigen::Isometry3f dT = Eigen::Isometry3f::Identity();
+        if (angle > 1e-8f)
+            dT.linear() = Eigen::AngleAxisf(angle, dphi / angle).toRotationMatrix();
+        dT.translation() = dx.head<3>();
+
+        oldest.pose = dT * oldest.pose;
+
+        if (dx.norm() < 1e-5f) break;
+    }
+
+    // const Eigen::Isometry3f delta = oldest.pose * T_prior.inverse();
+    // const float dt_m   = delta.translation().norm();
+    // const float dR_deg = Eigen::AngleAxisf(delta.rotation()).angle() * (180.0f / M_PI);
+    // std::printf("[run_ba] frame %lu: dt=%.4f m  dR=%.4f deg\n", oldest_fid, dt_m, dR_deg);
 }
 
 }

@@ -8,7 +8,12 @@ namespace smip_uav {
 class FrameProcessor {
 public:
     struct Config {
-        size_t seed_spacing{4};
+        // Adaptive seed spacing: seeds are placed so each surfel covers ~r_target metres in 3D.
+        // S(z) = r_target / (pixel_pitch * z), clamped to [S_min, S_max].
+        float  r_target{0.3f};    // [m]  target physical surfel radius
+        size_t S_min{4};          // [px] minimum pixel seed spacing (dense far-range limit)
+        size_t S_max{20};         // [px] maximum pixel seed spacing (sparse near-range / no-depth fallback)
+
         size_t perturb_window{1};
         size_t min_px{12};
 
@@ -28,11 +33,11 @@ public:
 
 private:
     struct Seed {
-        // image seed for super pixel
         float u, v;
         Eigen::Vector3f pos;
         Eigen::Vector3f nrm;
         float depth;
+        float inv_S_local_sq; // 1 / S_local^2, where S_local = r_target / (pixel_pitch * depth)
     };
 
     struct SeedAccum {
@@ -104,6 +109,7 @@ private:
     // Helpers
     float distance(const Seed& seed, size_t u, size_t v, const FramePixel& px) const;
     float depth_gradient(const Frame& f, size_t u, size_t v) const;
+    size_t compute_S_local(float depth) const;
 
     // Buffers
     BucketQueue bq_;
@@ -112,16 +118,9 @@ private:
     std::vector<SeedAccum> seed_accums_;
     std::vector<int32_t> labels_;
     std::vector<float> distances_;
-    mutable uint32_t next_surfel_id_{0};
-
-    // Temporal
-    Frame prev_frame_;
-
     // State
     Config config_;
     
-    // Derived Params
-    float inv_S_sq_{0.0f};    
 
 };
 

@@ -3,10 +3,7 @@
 
 namespace smip_uav {
 
-FrameProcessor::FrameProcessor(const Config& cfg) : config_(cfg) {
-    const float S = static_cast<float>(config_.seed_spacing);
-    inv_S_sq_ = 1.0f / (S * S);
-}
+FrameProcessor::FrameProcessor(const Config& cfg) : config_(cfg) {}
 
 std::vector<FrameSurfel> FrameProcessor::process(const Frame& cur_frame) {
     if (cur_frame.W == 0 || cur_frame.H == 0) return {};
@@ -27,47 +24,62 @@ std::vector<FrameSurfel> FrameProcessor::process(const Frame& cur_frame) {
 
 void FrameProcessor::init_seeds(const Frame& f) {
     seeds_.clear();
-    const size_t S = config_.seed_spacing;
-    const size_t u0 = S / 2;
-    const size_t v0 = S / 2;
     const int hw = static_cast<int>(config_.perturb_window);
 
-    for (size_t v = v0; v < f.H; v += S) {
-        for (size_t u = u0; u < f.W; u += S) {
-            // assign seed to the smallest depth gradient in the neighborhood
-            float best_grad = std::numeric_limits<float>::max();
-            int best_u = -1;
-            int best_v = -1;
+    // Adaptive raster walk: step size S(z) = r_target / (pixel_pitch * z)
+    // so each cluster covers ~r_target metres in 3D regardless of range.
+    size_t v = config_.S_min / 2 + 1;
+    while (v < f.H) {
+        // Representative depth for vertical step: sample centre column of this row.
+        const float d_row = f(f.W / 2, v).valid ? f(f.W / 2, v).depth : 0.0f;
+        const size_t S_row = compute_S_local(d_row);
 
-            for (int dv = -hw; dv <= hw; ++dv) {
-                for (int du = -hw; du <= hw; ++du) {
+        size_t u = config_.S_min / 2 + 1;
+        while (u < f.W) {
+            // Local depth at candidate — fall back to nearby pixels if invalid.
+            float d_here = f(u, v).valid ? f(u, v).depth : 0.0f;
+            if (!std::isfinite(d_here) || d_here < 1e-3f) {
+                for (int du = -2; du <= 2 && !(std::isfinite(d_here) && d_here > 1e-3f); ++du)
+                    for (int dv2 = -2; dv2 <= 2 && !(std::isfinite(d_here) && d_here > 1e-3f); ++dv2) {
+                        const int cu = static_cast<int>(u) + du;
+                        const int cv = static_cast<int>(v) + dv2;
+                        if (cu < 0 || cu >= static_cast<int>(f.W) || cv < 0 || cv >= static_cast<int>(f.H)) continue;
+                        if (f(cu, cv).valid) d_here = f(cu, cv).depth;
+                    }
+            }
+            const size_t S_local = compute_S_local(d_here);
+            const float inv_S_local_sq = 1.0f / (static_cast<float>(S_local) * static_cast<float>(S_local));
+
+            // Perturb to the pixel with the lowest depth gradient in the window.
+            const int hw_eff = std::min(hw, static_cast<int>(S_local / 2 + 1));
+            float best_grad = std::numeric_limits<float>::max();
+            int best_u = -1, best_v = -1;
+            for (int dv = -hw_eff; dv <= hw_eff; ++dv) {
+                for (int du = -hw_eff; du <= hw_eff; ++du) {
                     const int cu = static_cast<int>(u) + du;
                     const int cv = static_cast<int>(v) + dv;
                     if (cu < 0 || cu >= static_cast<int>(f.W) || cv < 0 || cv >= static_cast<int>(f.H)) continue;
-
-                    const FramePixel& px = f(cu, cv);
-                    if (!px.valid) continue;
-
+                    if (!f(cu, cv).valid) continue;
                     const float g = depth_gradient(f, cu, cv);
-                    if (g < best_grad) {
-                        best_grad = g;
-                        best_u = cu;
-                        best_v = cv;
-                    }
+                    if (g < best_grad) { best_grad = g; best_u = cu; best_v = cv; }
                 }
             }
 
-            if (best_u < 0 || best_v < 0) continue; // no valid pixel in nbh
+            if (best_u >= 0) {
+                const FramePixel& pxb = f(best_u, best_v);
+                seeds_.push_back({
+                    static_cast<float>(best_u),
+                    static_cast<float>(best_v),
+                    pxb.pos3d,
+                    pxb.nrm3d,
+                    pxb.depth,
+                    inv_S_local_sq
+                });
+            }
 
-            const FramePixel& pxb = f(best_u, best_v);
-            seeds_.push_back({
-                static_cast<float>(best_u),
-                static_cast<float>(best_v),
-                pxb.pos3d,
-                pxb.nrm3d,
-                pxb.depth
-            });
+            u += S_local;
         }
+        v += S_row;
     }
 }
 
@@ -174,7 +186,7 @@ void FrameProcessor::update_seeds(const Frame& f) {
 
                 const Seed& seed = seeds_[label];
                 const float r = (px.pos3d - seed.pos).norm();
-                const float delta_h = seed.depth * config_.pixel_pitch * config_.seed_spacing;
+                const float delta_h = config_.r_target;
                 const float huber_scale = (r <= delta_h || r < 1e-6f) ? 1.0f : delta_h / r;
                 const float w = px.weight * huber_scale;
 
@@ -241,7 +253,7 @@ void FrameProcessor::update_seeds(const Frame& f) {
                 float w = px.weight;
 
                 const float r = (px.pos3d - seed.pos).norm();
-                const float delta_h = seed.depth * config_.pixel_pitch * config_.seed_spacing;
+                const float delta_h = config_.r_target;
                 const float spatial_scale = (r <= delta_h || r < 1e-6f) ? 1.0f : delta_h / r;
                 w *= spatial_scale;
 
@@ -276,15 +288,22 @@ void FrameProcessor::update_seeds(const Frame& f) {
 float FrameProcessor::distance(const Seed& seed, size_t u, size_t v, const FramePixel& px) const {
     const float du = static_cast<float>(u) - seed.u;
     const float dv = static_cast<float>(v) - seed.v;
-    const float d_img = (du * du + dv * dv) * inv_S_sq_;
+    const float d_img = (du * du + dv * dv) * seed.inv_S_local_sq;
 
-    const float c_spatial = std::min(seed.depth, px.depth) * config_.pixel_pitch * config_.seed_spacing;
-    const float d_spatial = (px.pos3d - seed.pos).squaredNorm() / (c_spatial * c_spatial);
+    // c_spatial is now the fixed physical target radius, making d_spatial depth-independent.
+    const float d_spatial = (px.pos3d - seed.pos).squaredNorm() / (config_.r_target * config_.r_target);
 
     const float n_dot = std::clamp(std::abs(px.nrm3d.dot(seed.nrm)), 0.0f, 1.0f);
     const float d_normal = (1.0f - n_dot) * (1.0f - n_dot);
 
     return d_img + config_.w_spatial * d_spatial + config_.w_normal * d_normal;
+}
+
+size_t FrameProcessor::compute_S_local(float depth) const {
+    if (!std::isfinite(depth) || depth < 1e-3f) return config_.S_max;
+    const float S_f = config_.r_target / (config_.pixel_pitch * depth);
+    const auto S = static_cast<size_t>(std::round(S_f));
+    return std::clamp(S, config_.S_min, config_.S_max);
 }
 
 float FrameProcessor::depth_gradient(const Frame& f, size_t u, size_t v) const {
@@ -367,7 +386,7 @@ std::vector<FrameSurfel> FrameProcessor::aggregate() const {
         slots[k].eigenvectors = evecs;
         slots[k].C_shape = C;
         slots[k].weight = Neff / static_cast<float>(a.count); // weight bounded [0,1]
-        slots[k].view_cos_theta = -normal.dot(centroid.normalized());
+        slots[k].view_cos_theta = -normal.dot(centroid.normalized()); // at surface-orthogonal inspection = 1
         filled[k] = 1;
     }
 

@@ -42,10 +42,12 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
 
         // accumulate weighted observations into each responsible component
         for (const auto& entry : resp_) {
-            if (entry.r < 1e-6f) continue;
+            if (entry.r < 0.25f) continue; // only merge into significant responsibility
+            // if (entry.r < 1e-6f) continue;
 
+            // Update accumulated stats
             auto& acc = accums_[entry.component];
-            const float wr = w_k * entry.r;
+            const float wr = w_k * entry.r; // scale weight by repsonsibility
             acc.delta_W += wr;
             acc.delta_S1 += wr * fs_w.centroid;
             acc.delta_S2 += wr * (fs_w.centroid * fs_w.centroid.transpose() + fs_w.C_shape);
@@ -57,18 +59,26 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
     }
 
     // M-Step: Apply accumulated deltas, reconstruct params
-    const float gamma = cfg_.gamma_forget;
-    const float one_m_gamma = 1.0f - gamma;
     for (auto& [ms_ptr, acc] : accums_) {
-        ms_ptr->W = gamma * ms_ptr->W + one_m_gamma * acc.delta_W;
-        ms_ptr->S1 = gamma * ms_ptr->S1 + one_m_gamma * acc.delta_S1;
-        ms_ptr->S2 = gamma * ms_ptr->S2 + one_m_gamma * acc.delta_S2;
+        float alpha = std::max(0.001f, std::exp(-static_cast<float>(ms_ptr->obs_count) / static_cast<float>(cfg_.converge_obs_min)));
+        float gamma = 1.0f - alpha;
 
+        // evolve the map surfel
+        ms_ptr->W  = gamma * ms_ptr->W  + alpha * acc.delta_W;
+        ms_ptr->S1 = gamma * ms_ptr->S1 + alpha * acc.delta_S1;
+        ms_ptr->S2 = gamma * ms_ptr->S2 + alpha * acc.delta_S2;
+
+        // reconstruct the surfel from statistics
         ms_ptr->reconstruct();
         ms_ptr->obs_count++;
         ms_ptr->last_seen = timestamp_ns;
 
-        // Delta update tracking
+        if (!ms_ptr->converged && ms_ptr->obs_count >= cfg_.converge_obs_min) {
+            if (ms_ptr->planarity() >= cfg_.converge_planarity) {
+                ms_ptr->converged = true;
+            }
+        }
+
         updated_ids_.insert(ms_ptr->id);
     }
 
@@ -103,6 +113,7 @@ float SurfelMap::compute_responsibilities(const FrameSurfel& fs_w, std::vector<R
             // log(r~)
             const float log_r_tilde = std::log(ms.W + 1e-7f) - log_2pi_1_5_ - 0.5f*log_det_M - 0.5f*epsilon + log_p_normal;
 
+            // {ptr to ms, log responsibility, 0.0f (normalize later)}
             resp_out.push_back({&ms, log_r_tilde, 0.0f});
         }
     };
@@ -110,7 +121,8 @@ float SurfelMap::compute_responsibilities(const FrameSurfel& fs_w, std::vector<R
     // collect candidates from center voxel + 6-conn-nbs (modifies resp_out)
     const VoxelKey key = grid_->to_key(fs_w.centroid);
     if (Voxel* v = grid_->get(key)) search_voxel(*v); // search center voxel
-    grid_->for_each_nb26(key, [&](const VoxelKey&, Voxel& v) { search_voxel(v); }); // search nb-6 / nb-26 voxels
+    
+    // grid_->for_each_nb6(key, [&](const VoxelKey&, Voxel& v) { search_voxel(v); }); // search nb-6 / nb-26 voxels
     
     if (resp_out.empty()) {
         return 1.0f; // no candidates at all - entire resp goes to spawn
@@ -207,6 +219,8 @@ void SurfelMap::merge() {
 
     const float tau_n = 0.1f * cfg_.grid_config.voxel_size;
     auto should_merge = [&](const MapSurfel& a, const MapSurfel& b) -> bool {
+        // if (a.converged || b.converged) return false;
+
         // normal alignment
         if (a.normal.dot(b.normal) < merge_normal_cos_) return false;
         
@@ -259,7 +273,8 @@ void SurfelMap::merge() {
         }
 
         // Cross-voxel pairs (center vs each nb6)
-        grid_->for_each_nb6(key_a, [&](const VoxelKey& key_b, Voxel& voxel_b) {
+        grid_->for_each_nb26(key_a, [&](const VoxelKey& key_b, Voxel& voxel_b) {
+        // grid_->for_each_nb6(key_a, [&](const VoxelKey& key_b, Voxel& voxel_b) {
             // only process if key_a < key_b to avoid doubles
             if (!(key_a < key_b)) return;
 

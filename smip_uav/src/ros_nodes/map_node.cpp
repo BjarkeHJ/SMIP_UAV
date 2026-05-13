@@ -19,10 +19,7 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
     surfel_ch_ = viz_channels::surfels(*viz_, cfg_.sensor_tof_frame, "tof_surfel", rclcpp::SensorDataQoS());
     superpixel_ch_ = viz_channels::frame_superpixels(*viz_, cfg_.sensor_tof_frame, "tof_superpixels", rclcpp::SensorDataQoS());
     map_ch_   = viz_channels::map_surfels_delta(*viz_, cfg_.odom_frame, "map_surfel", rclcpp::SensorDataQoS());
-    track_ch_ = viz_channels::buffer_tracks(*viz_, cfg_.odom_frame, "buffer_tracks",
-        rclcpp::SensorDataQoS(),
-        static_cast<uint8_t>(cfg_.fbuff_cfg.M_min),
-        static_cast<uint8_t>(cfg_.fbuff_cfg.window_size));
+    track_ch_ = viz_channels::buffer_tracks(*viz_, cfg_.odom_frame, "buffer_tracks", rclcpp::SensorDataQoS());
 
     // Components
     fbuild_ = std::make_unique<FrameBuilder>(cfg_.fbuild_cfg);
@@ -86,13 +83,13 @@ void SurfelMapNode::declare_parameters() {
     this->declare_parameter("builder.edge_depth_min",       0.02);
 
     // FrameProcessor::Config
-    this->declare_parameter("processor.seed_spacing",       (int)4);
+    this->declare_parameter("processor.S_min",              (int)4);
+    this->declare_parameter("processor.S_max",              (int)30);
     this->declare_parameter("processor.perturb_window",     (int)1);
     this->declare_parameter("processor.min_px",             (int)12);
     this->declare_parameter("processor.w_spatial",          1.0);
     this->declare_parameter("processor.w_normal",           1.0);
     this->declare_parameter("processor.max_cluster_dist",   1.0);
-    this->declare_parameter("processor.pixel_pitch",        0.01071);
 
     // VoxelGrid::Config
     this->declare_parameter("grid.voxel_size",              0.25);
@@ -104,7 +101,6 @@ void SurfelMapNode::declare_parameters() {
     this->declare_parameter("map.pi_spawn",                 0.005);
     this->declare_parameter("map.spawn_residual",           0.75);
     this->declare_parameter("map.spawn_alpha",              0.1);
-    this->declare_parameter("map.gamma_forget",             0.99);
     this->declare_parameter("map.normal_sigma",             M_PI / 8.0);
     this->declare_parameter("map.merge_normal_k",           0.5);
     this->declare_parameter("map.merge_mahal_sq",           3.0);
@@ -126,20 +122,21 @@ void SurfelMapNode::load_parameters() {
     b.edge_depth_min = (float)this->get_parameter("builder.edge_depth_min").as_double();
 
     auto& p = cfg_.fproc_cfg;
-    p.seed_spacing = (size_t)this->get_parameter("processor.seed_spacing").as_int();
-    p.perturb_window = (size_t)this->get_parameter("processor.perturb_window").as_int();
-    p.min_px = (size_t)this->get_parameter("processor.min_px").as_int();
-    p.w_spatial = (float)this->get_parameter("processor.w_spatial").as_double();
-    p.w_normal = (float)this->get_parameter("processor.w_normal").as_double();
+    p.r_target        = (float)this->get_parameter("grid.voxel_size").as_double();
+    p.S_min           = (size_t)this->get_parameter("processor.S_min").as_int();
+    p.S_max           = (size_t)this->get_parameter("processor.S_max").as_int();
+    p.perturb_window  = (size_t)this->get_parameter("processor.perturb_window").as_int();
+    p.min_px          = (size_t)this->get_parameter("processor.min_px").as_int();
+    p.w_spatial       = (float)this->get_parameter("processor.w_spatial").as_double();
+    p.w_normal        = (float)this->get_parameter("processor.w_normal").as_double();
     p.max_cluster_dist = (float)this->get_parameter("processor.max_cluster_dist").as_double();
-    p.pixel_pitch = (float)this->get_parameter("processor.pixel_pitch").as_double();
+    p.pixel_pitch     = b.pixel_pitch; // same sensor — no separate param needed
 
     auto& s = cfg_.smap_cfg;
     s.prior_W = (float)this->get_parameter("map.prior_w").as_double();
     s.pi_spawn = (float)this->get_parameter("map.pi_spawn").as_double();
     s.spawn_residual = (float)this->get_parameter("map.spawn_residual").as_double();
     s.spawn_alpha = (float)this->get_parameter("map.spawn_alpha").as_double();
-    s.gamma_forget = (float)this->get_parameter("map.gamma_forget").as_double();
     s.normal_sigma = (float)this->get_parameter("map.normal_sigma").as_double();
     s.merge_normal_k = (float)this->get_parameter("map.merge_normal_k").as_double();
     s.merge_mahal_sq = (float)this->get_parameter("map.merge_mahal_sq").as_double();
@@ -153,8 +150,8 @@ void SurfelMapNode::load_parameters() {
 
 bool SurfelMapNode::get_transform(const rclcpp::Time& stamp) {
     try {
-        // auto transform = tf_buffer_->lookupTransform(cfg_.odom_frame, cfg_.sensor_tof_frame, stamp, rclcpp::Duration::from_nanoseconds(20'000'000));
-        auto transform = tf_buffer_->lookupTransform(cfg_.odom_frame, cfg_.sensor_tof_frame, tf2::TimePointZero);
+        auto transform = tf_buffer_->lookupTransform(cfg_.odom_frame, cfg_.sensor_tof_frame, stamp, rclcpp::Duration::from_nanoseconds(20'000'000));
+        // auto transform = tf_buffer_->lookupTransform(cfg_.odom_frame, cfg_.sensor_tof_frame, tf2::TimePointZero);
         tf_ = tf2::transformToEigen(transform.transform).cast<float>();
         return true;
     }

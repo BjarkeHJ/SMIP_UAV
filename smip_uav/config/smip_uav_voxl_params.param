@@ -26,13 +26,13 @@ smip_uav_node:
 
     # ── FrameProcessor::Config ───────────────────────────────────────────────
     processor:
-      seed_spacing:         10        # [px] grid spacing between initial superpixel seeds
+      S_min:                4          # [px] minimum pixel seed spacing (dense far-range limit)
+      S_max:                30         # [px] maximum pixel seed spacing (sparse near-range / no-depth fallback)
       perturb_window:       1         # [px] local window for seed perturbation
       min_px:               12        # minimum pixels per surfel segment
       w_spatial:            1.0       # weight of spatial distance in assignment cost
       w_normal:             1.0       # weight of normal distance in assignment cost
       max_cluster_dist:     1.0       # maximum assignment cost to join a cluster
-      pixel_pitch:          0.01071   # [rad/px] must match builder.pixel_pitch
 
     # ── VoxelGrid::Config ────────────────────────────────────────────────────
     grid:
@@ -42,13 +42,14 @@ smip_uav_node:
 
     # ── SurfelMap::Config (GMM integration) ──────────────────────────────────
     map:
+      prior_w:              0.1       # prior weight of new MapSurfel (dirictlet prior)
       pi_spawn:             0.001     # spawn prior — higher = easier to spawn new surfels
-      spawn_residual:       0.75      # residual threshold r_new to spawn a new surfel
-      gamma_forget:         0.99      # forgetting factor for the M-step weight update
+      spawn_residual:       0.5      # residual threshold r_new to spawn a new surfel
+      spawn_alpha:          0.1       # local "stick" concentration - determine local spawn-likelihood based on local map density [0 ; 1]
       normal_sigma:         0.3927    # [rad] std-dev of normal Gaussian (default pi/8)
-      merge_normal_k:       0.5       # merge normal gate at k*sigma (must be < 1.0)
+      merge_normal_k:       0.85       # merge normal gate at k*sigma (must be < 1.0)
       merge_mahal_sq:       3.0       # squared Mahalanobis distance threshold for merging
-      merge_interval:       10        # frames between merge passes
+      merge_interval:       5        # frames between merge passes
 
 
 open_vins_to_tf:
