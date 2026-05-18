@@ -42,7 +42,6 @@ private:
 
     struct SeedAccum {
         // Per-seed accumulative statistics
-        float sum_u{0.0f}, sum_v{0.0f};
         Eigen::Vector3f sum_pos{Eigen::Vector3f::Zero()};
         Eigen::Vector3f sum_nrm{Eigen::Vector3f::Zero()};
         Eigen::Matrix3f sum_outer{Eigen::Matrix3f::Zero()};
@@ -50,7 +49,7 @@ private:
         uint32_t count{0};
 
         void reset() {
-            sum_u = sum_v = sum_w = 0.0f;
+            sum_w = 0.0f;
             sum_pos.setZero();
             sum_nrm.setZero();
             sum_outer.setZero();
@@ -58,8 +57,6 @@ private:
         }
 
         void merge(const SeedAccum& o) {
-            sum_u     += o.sum_u;
-            sum_v     += o.sum_v;
             sum_pos   += o.sum_pos;
             sum_nrm   += o.sum_nrm;
             sum_outer += o.sum_outer;

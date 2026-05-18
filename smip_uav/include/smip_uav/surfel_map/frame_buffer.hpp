@@ -32,15 +32,15 @@ struct TrackedSurfelViz {
 class FrameBuffer {
 public:
     struct Config {
-        size_t window_size{10};
+        size_t window_size{6};
 
         float voxel_size{0.25f};
         float corr_normal_cos{0.9f};
         float corr_mahal_sq{2.0f};
-        size_t M_min{6};
+        size_t M_min{5};
 
         bool enable_ba{true};
-        size_t ba_max_iters{10};
+        size_t ba_max_iters{5};
     };
 
 
@@ -78,9 +78,14 @@ private:
         bool cache_dirty{true};
     };
 
+    struct MatchEdge {
+        uint16_t idx_a, idx_b;  // local surfel indices within each frame
+    };
+
     CommittedSurfels evict_oldest();
 
     void build_tracks();
+    std::vector<MatchEdge> compute_matches(size_t i, size_t j);
     void rebuild_frame_cache(BufferFrame& bf);
     bool track_confirmed(int32_t track_id) const;
 
@@ -88,6 +93,9 @@ private:
 
     Config cfg_;
     std::deque<BufferFrame> slots_;
+    // cached_edge_pairs_[p] holds mutual-best matches between slots_[p] and slots_[p+1].
+    // Maintained in lock-step with slots_: push_back on new pair, pop_front on eviction.
+    std::deque<std::vector<MatchEdge>> cached_edge_pairs_;
     uint64_t next_frame_id_{1};
 
     std::unordered_map<int32_t, uint8_t> track_size_;

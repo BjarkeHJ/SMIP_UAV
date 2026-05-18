@@ -42,7 +42,8 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
 
         // accumulate weighted observations into each responsible component
         for (const auto& entry : resp_) {
-            if (entry.r < 0.25f) continue; // only merge into significant responsibility
+            // if (entry.r < 0.25f) continue; // only merge into significant responsibility
+            if (entry.r < 0.05f) continue; // only merge into significant responsibility
 
             // Update accumulated stats
             auto& acc = accums_[entry.component];
@@ -67,6 +68,20 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
         ms_ptr->S1 = gamma * ms_ptr->S1 + alpha * acc.delta_S1;
         ms_ptr->S2 = gamma * ms_ptr->S2 + alpha * acc.delta_S2;
 
+        // Persistent disk prior: inject a pseudo-observation whose covariance matches the
+        // surfel's current tangential shape but replaces the normal eigenvalue with a tight
+        // prior. Squishes the normal direction without limiting lateral extent.
+        {
+            constexpr float kDiskW  = 0.05f;  // pseudo-obs weight per frame
+            constexpr float kSigmaN = 1e-8f;  // target normal variance ~(0.1mm)^2
+            const Eigen::Vector3f& n  = ms_ptr->normal;
+            const Eigen::Vector3f  mu = ms_ptr->S1 / ms_ptr->W;
+            const Eigen::Matrix3f  disk = ms_ptr->sigma + (kSigmaN - ms_ptr->eigenvalues[0]) * (n * n.transpose());
+            ms_ptr->W  += kDiskW;
+            ms_ptr->S1 += kDiskW * mu;
+            ms_ptr->S2 += kDiskW * (mu * mu.transpose() + disk);
+        }
+
         // reconstruct the surfel from statistics
         ms_ptr->reconstruct();
         ms_ptr->obs_count++;
@@ -84,6 +99,31 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
     // Spawn new
     for (const FrameSurfel& fs_w : spawn_candidates_) {
         spawn(fs_w, timestamp_ns);
+    }
+
+    // Update rolling local-map window with this frame's unique active voxel keys
+    {
+        std::unordered_set<VoxelKey, VoxelKeyHash> frame_key_set;
+        for (const auto& [ms_ptr, _] : accums_)
+            if (auto it = surfel_home_.find(ms_ptr->id); it != surfel_home_.end())
+                frame_key_set.insert(it->second);
+        for (const auto& fs_w : spawn_candidates_)
+            frame_key_set.insert(grid_->to_key(fs_w.centroid));
+
+        for (const VoxelKey& k : frame_key_set)
+            local_map_voxels_[k]++;
+
+        active_voxel_window_.push_back(
+            std::vector<VoxelKey>(frame_key_set.begin(), frame_key_set.end()));
+
+        if (static_cast<int32_t>(active_voxel_window_.size()) > cfg_.local_map_window) {
+            for (const VoxelKey& k : active_voxel_window_.front()) {
+                auto it = local_map_voxels_.find(k);
+                if (it != local_map_voxels_.end() && --it->second == 0)
+                    local_map_voxels_.erase(it);
+            }
+            active_voxel_window_.pop_front();
+        }
     }
 
     cache_dirty_ = true;
@@ -206,8 +246,6 @@ void SurfelMap::merge() {
     };
     std::vector<MergePair> pairs;
 
-    std::cout << "merge call" << std::endl;
-
     const float tau_n = 0.1f * cfg_.grid_config.voxel_size;
     auto should_merge = [&](const MapSurfel& a, const MapSurfel& b) -> bool {
         // if (a.converged || b.converged) return false;
@@ -228,7 +266,10 @@ void SurfelMap::merge() {
         const float d2 = d_tan.dot(S.ldlt().solve(d_tan));
         if (d2 >= cfg_.merge_mahal_sq) return false;
 
+        
         // Predict merege planarity
+        if (a.planarity() < cfg_.merge_min_planarity * 0.8f || b.planarity() < cfg_.merge_min_planarity * 0.8f) return false;
+
         const float W_new = a.W + b.W;
         const Eigen::Vector3f mu_new = (a.W * a.mu + b.W * b.mu) / W_new;
         const Eigen::Vector3f da = a.mu - mu_new;
@@ -244,8 +285,25 @@ void SurfelMap::merge() {
         return true;
     };
 
-    // Iterate over all (TODO: maintain active subset)
-    for (auto& [key_a, voxel_a] : *grid_) {
+    const float planarity_floor = cfg_.merge_min_planarity * 0.8f;
+
+    for (const auto& [key_a, _] : local_map_voxels_) {
+        Voxel* vp_a = grid_->get(key_a);
+        if (!vp_a) continue;
+        Voxel& voxel_a = *vp_a;
+
+        // Delete stable but non-planar surfels (enough observations yet still below floor = noise)
+        for (int8_t i = (int8_t)voxel_a.count - 1; i >= 0; --i) {
+            const MapSurfel& ms = voxel_a.surfels[i];
+            if (ms.obs_count >= cfg_.converge_obs_min && ms.planarity() < planarity_floor) {
+                deleted_ids_.insert(ms.id);
+                updated_ids_.erase(ms.id);
+                surfel_home_.erase(ms.id);
+                voxel_a.remove_at((uint8_t)i);
+                cache_dirty_ = true;
+            }
+        }
+        if (voxel_a.empty()) continue;
 
         // Intra-voxel pairs
         for (uint8_t i = 0; i < voxel_a.count; ++i) {
@@ -264,8 +322,8 @@ void SurfelMap::merge() {
         }
 
         // Cross-voxel pairs (center vs each nb6)
-        grid_->for_each_nb26(key_a, [&](const VoxelKey& key_b, Voxel& voxel_b) {
-        // grid_->for_each_nb6(key_a, [&](const VoxelKey& key_b, Voxel& voxel_b) {
+        // grid_->for_each_nb26(key_a, [&](const VoxelKey& key_b, Voxel& voxel_b) {
+        grid_->for_each_nb6(key_a, [&](const VoxelKey& key_b, Voxel& voxel_b) {
             // only process if key_a < key_b to avoid doubles
             if (!(key_a < key_b)) return;
 
@@ -406,15 +464,28 @@ FrameSurfel SurfelMap::transform_surfel_to_world(const FrameSurfel& fs, const Ei
 }
 
 std::vector<MapSurfel*> SurfelMap::get_updated_surfels() {
-    const auto& all = get_all_surfels();
+    // const auto& all = get_all_surfels();
     std::vector<MapSurfel*> result;
     result.reserve(updated_ids_.size());
 
-    for (MapSurfel* ms : all) {
-        if (updated_ids_.count(ms->id)) {
-            result.push_back(ms);
+    for (uint32_t id : updated_ids_) {
+        auto it = surfel_home_.find(id);
+        if (it == surfel_home_.end()) continue;
+        if (Voxel* v = grid_->get(it->second)) {
+            for (auto& ms : *v) {
+                if (ms.id == id) {
+                    result.push_back(&ms);
+                    break;
+                }
+            }
         }
     }
+
+    // for (MapSurfel* ms : all) {
+    //     if (updated_ids_.count(ms->id)) {
+    //         result.push_back(ms);
+    //     }
+    // }
 
     clear_deltas(); // Clear deltas after each call of get_updated_surfels()
     return result;

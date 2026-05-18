@@ -3,7 +3,11 @@
 
 namespace smip_uav {
 
-FrameProcessor::FrameProcessor(const Config& cfg) : config_(cfg) {}
+FrameProcessor::FrameProcessor(const Config& cfg) : config_(cfg) {
+    for (auto& b : bq_.buckets) {
+        b.reserve(43200 / 256);  // ~43200 / 256 ≈ 169 per bucket
+    }
+}
 
 std::vector<FrameSurfel> FrameProcessor::process(const Frame& cur_frame) {
     if (cur_frame.W == 0 || cur_frame.H == 0) return {};
@@ -168,6 +172,7 @@ void FrameProcessor::update_seeds(const Frame& f) {
     };
     std::vector<PlaneEstimate> planes(N_seeds);
 
+    const float delta_h_sq = config_.r_target * config_.r_target;
     // Single parallel region covers all three phases to avoid repeated fork/join
     #pragma omp parallel
     {
@@ -185,14 +190,11 @@ void FrameProcessor::update_seeds(const Frame& f) {
                 if (!px.valid) continue;
 
                 const Seed& seed = seeds_[label];
-                const float r = (px.pos3d - seed.pos).norm();
-                const float delta_h = config_.r_target;
-                const float huber_scale = (r <= delta_h || r < 1e-6f) ? 1.0f : delta_h / r;
+                const float r_sq = (px.pos3d - seed.pos).squaredNorm();
+                const float huber_scale = (r_sq <= delta_h_sq || r_sq < 1e-6f) ? 1.0f : config_.r_target / std::sqrt(r_sq);
                 const float w = px.weight * huber_scale;
 
                 SeedAccum& a = local[label];
-                a.sum_u     += w * static_cast<float>(u);
-                a.sum_v     += w * static_cast<float>(v);
                 a.sum_pos   += w * px.pos3d;
                 a.sum_nrm   += w * px.nrm3d;
                 a.sum_outer += w * px.pos3d * px.pos3d.transpose();
@@ -268,8 +270,6 @@ void FrameProcessor::update_seeds(const Frame& f) {
                 }
 
                 SeedAccum& a = local[label];
-                a.sum_u     += w * static_cast<float>(u);
-                a.sum_v     += w * static_cast<float>(v);
                 a.sum_pos   += w * px.pos3d;
                 a.sum_nrm   += w * px.nrm3d;
                 a.sum_outer += w * px.pos3d * px.pos3d.transpose();

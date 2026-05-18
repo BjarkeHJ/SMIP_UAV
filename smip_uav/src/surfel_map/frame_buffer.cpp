@@ -77,6 +77,7 @@ std::vector<CommittedSurfels> FrameBuffer::push(std::vector<FrameSurfel> surfels
     if (cfg_.enable_ba) {
         run_ba();
         for (auto& s : slots_) s.cache_dirty = true;
+        cached_edge_pairs_.clear(); // poses changed — all cached matches are stale
         build_tracks(); // rebuild tracks after ba
     }
     
@@ -124,6 +125,8 @@ CommittedSurfels FrameBuffer::evict_oldest() {
     }
 
     slots_.pop_front();
+    if (!cached_edge_pairs_.empty())
+        cached_edge_pairs_.pop_front();
     return c;
 }
 
@@ -155,12 +158,19 @@ void FrameBuffer::build_tracks() {
     track_members_.clear();
     if (slots_.empty()) return;
 
-    // refresh world-frame caches and hashes 
+    // Rebuild dirty caches (only the new frame is dirty in steady state)
     for (auto& bf : slots_) {
         if (bf.cache_dirty) rebuild_frame_cache(bf);
     }
 
-    // reset per-frame track ids; flat node table for union find
+    // Fill any missing edge pairs. In steady state this runs exactly once for the
+    // newest pair. After a full cache invalidation (e.g. post-BA) it runs for all pairs.
+    while (cached_edge_pairs_.size() < slots_.size() - 1) {
+        const size_t i = cached_edge_pairs_.size(); // index of next uncached pair
+        cached_edge_pairs_.push_back(compute_matches(i, i + 1));
+    }
+
+    // Reset per-frame track IDs and build flat node offset table
     std::vector<size_t> frame_offsets(slots_.size() + 1, 0);
     for (size_t i = 0; i < slots_.size(); ++i) {
         slots_[i].track_ids.assign(slots_[i].surfels.size(), -1);
@@ -170,78 +180,18 @@ void FrameBuffer::build_tracks() {
     if (total_nodes == 0) return;
     UnionFind uf(total_nodes);
 
-    // pairwise matching with mutual-best on
-    const float int_vs = 1.0f / cfg_.voxel_size;
-
-    auto match_pair = [&](size_t i, size_t j) {
-        const BufferFrame& fa = slots_[i];
-        const BufferFrame& fb = slots_[j];
-        const size_t Na = fa.surfels.size();
-        const size_t Nb = fb.surfels.size();
-        if (Na == 0 || Nb == 0) return;
-
-        std::vector<int32_t> best_b_for_a(Na, -1);
-        std::vector<float> score_a(Na, std::numeric_limits<float>::max());
-        std::vector<int32_t> best_a_for_b(Nb, -1);
-        std::vector<float> score_b(Nb, std::numeric_limits<float>::max());
-
-        const float eucl_sq = cfg_.voxel_size * cfg_.voxel_size;
-
-        for (size_t ka = 0; ka < Na; ++ka) {
-            const Eigen::Vector3f& mu_a = fa.mu_w[ka];
-            const Eigen::Vector3f& n_a = fa.n_w[ka];
-            const Eigen::Matrix3f& S_a = fa.S_w[ka];
-
-            const VoxelKey kc = to_key(mu_a, int_vs);
-
-            for (const auto& o : kNb7) {
-                const VoxelKey k{kc.x + o[0], kc.y + o[1], kc.z + o[2]};
-                auto it = fb.voxel_index.find(k);
-                if (it == fb.voxel_index.end()) continue;
-
-                for (uint16_t kb_u : it->second) {
-                    const size_t kb = kb_u;
-
-                    const float cos_n = n_a.dot(fb.n_w[kb]);
-                    if (cos_n < cfg_.corr_normal_cos) continue;
-
-                    const Eigen::Vector3f d = mu_a - fb.mu_w[kb];
-                    if (d.squaredNorm() > eucl_sq) continue;
-
-                    const Eigen::Matrix3f S = S_a + fb.S_w[kb];
-                    const float d2 = d.dot(S.ldlt().solve(d));
-                    if (!std::isfinite(d2) || d2 < 0.0f) continue;
-                    if (d2 >= cfg_.corr_mahal_sq) continue;
-
-                    if (d2 < score_a[ka]) {
-                        score_a[ka] = d2;
-                        best_b_for_a[ka] = static_cast<int32_t>(kb);
-                    }
-                    if (d2 < score_b[kb]) {
-                        score_b[kb] = d2;
-                        best_a_for_b[kb] = static_cast<int32_t>(ka);
-                    }
-                }
-            }
+    // Replay all cached edges into the UnionFind.
+    // Invariant: cached_edge_pairs_[p] holds matches between slots_[p] and slots_[p+1].
+    for (size_t p = 0; p < cached_edge_pairs_.size(); ++p) {
+        const int32_t off_a = static_cast<int32_t>(frame_offsets[p]);
+        const int32_t off_b = static_cast<int32_t>(frame_offsets[p + 1]);
+        for (const auto& e : cached_edge_pairs_[p]) {
+            uf.unite(off_a + e.idx_a, off_b + e.idx_b);
         }
-        // mutual best filter
-        const int32_t off_a = static_cast<int32_t>(frame_offsets[i]);
-        const int32_t off_b = static_cast<int32_t>(frame_offsets[j]);
-        for(size_t ka = 0; ka < Na; ++ka) {
-            const int32_t kb = best_b_for_a[ka];
-            if (kb < 0) continue;
-            if (best_a_for_b[kb] != static_cast<int32_t>(ka)) continue;
-            uf.unite(off_a + static_cast<int32_t>(ka), off_b + kb);
-        }
-    };
-
-    // track only for buffer-adjacent frames
-    for (size_t i = 0; i+1 < slots_.size(); ++i) {
-        match_pair(i, i+1);
     }
 
-    // resolve canonical track ids; count distinct frames per component via bitmask
-    // window_size is always <= 64 so uint64_t suffices
+    // Resolve canonical track IDs; count distinct frames per component via bitmask.
+    // window_size is always <= 64 so uint64_t suffices.
     std::unordered_map<int32_t, uint64_t> component_frame_mask;
     for (size_t i = 0; i < slots_.size(); ++i) {
         const uint64_t bit = uint64_t{1} << i;
@@ -265,8 +215,65 @@ void FrameBuffer::build_tracks() {
             track_members_[root].emplace_back(slots_[i].frame_id, k);
         }
     }
+}
 
-    return;
+std::vector<FrameBuffer::MatchEdge> FrameBuffer::compute_matches(size_t i, size_t j) {
+    const BufferFrame& fa = slots_[i];
+    const BufferFrame& fb = slots_[j];
+    const size_t Na = fa.surfels.size();
+    const size_t Nb = fb.surfels.size();
+
+    std::vector<MatchEdge> result;
+    if (Na == 0 || Nb == 0) return result;
+
+    std::vector<int32_t> best_b_for_a(Na, -1);
+    std::vector<float>   score_a(Na, std::numeric_limits<float>::max());
+    std::vector<int32_t> best_a_for_b(Nb, -1);
+    std::vector<float>   score_b(Nb, std::numeric_limits<float>::max());
+
+    const float inv_vs  = 1.0f / cfg_.voxel_size;
+    const float eucl_sq = cfg_.voxel_size * cfg_.voxel_size;
+
+    for (size_t ka = 0; ka < Na; ++ka) {
+        const Eigen::Vector3f& mu_a = fa.mu_w[ka];
+        const Eigen::Vector3f& n_a  = fa.n_w[ka];
+        const Eigen::Matrix3f& S_a  = fa.S_w[ka];
+
+        const VoxelKey kc = to_key(mu_a, inv_vs);
+
+        for (const auto& o : kNb7) {
+            const VoxelKey k{kc.x + o[0], kc.y + o[1], kc.z + o[2]};
+            auto it = fb.voxel_index.find(k);
+            if (it == fb.voxel_index.end()) continue;
+
+            for (uint16_t kb_u : it->second) {
+                const size_t kb = kb_u;
+
+                const float cos_n = n_a.dot(fb.n_w[kb]);
+                if (cos_n < cfg_.corr_normal_cos) continue;
+
+                const Eigen::Vector3f d = mu_a - fb.mu_w[kb];
+                if (d.squaredNorm() > eucl_sq) continue;
+
+                const Eigen::Matrix3f S = S_a + fb.S_w[kb];
+                const float d2 = d.dot(S.inverse() * d);
+                if (!std::isfinite(d2) || d2 < 0.0f) continue;
+                if (d2 >= cfg_.corr_mahal_sq) continue;
+
+                if (d2 < score_a[ka]) { score_a[ka] = d2; best_b_for_a[ka] = static_cast<int32_t>(kb); }
+                if (d2 < score_b[kb]) { score_b[kb] = d2; best_a_for_b[kb] = static_cast<int32_t>(ka); }
+            }
+        }
+    }
+
+    // Mutual-best filter
+    for (size_t ka = 0; ka < Na; ++ka) {
+        const int32_t kb = best_b_for_a[ka];
+        if (kb < 0) continue;
+        if (best_a_for_b[kb] != static_cast<int32_t>(ka)) continue;
+        result.push_back({static_cast<uint16_t>(ka), static_cast<uint16_t>(kb)});
+    }
+    return result;
 }
 
 std::vector<TrackedSurfelViz> FrameBuffer::get_buffer_viz() const {
@@ -393,13 +400,15 @@ void FrameBuffer::run_ba() {
 
         oldest.pose = dT * oldest.pose;
 
-        if (dx.norm() < 1e-5f) break;
+        if (dx.norm() < 1e-5f) {
+            break;
+        };
     }
 
-    // const Eigen::Isometry3f delta = oldest.pose * T_prior.inverse();
-    // const float dt_m   = delta.translation().norm();
-    // const float dR_deg = Eigen::AngleAxisf(delta.rotation()).angle() * (180.0f / M_PI);
-    // std::printf("[run_ba] frame %lu: dt=%.4f m  dR=%.4f deg\n", oldest_fid, dt_m, dR_deg);
+    const Eigen::Isometry3f delta = oldest.pose * T_prior.inverse();
+    const float dt_m   = delta.translation().norm();
+    const float dR_deg = Eigen::AngleAxisf(delta.rotation()).angle() * (180.0f / M_PI);
+    std::printf("[run_ba] frame %lu: dt=%.4f m  dR=%.4f deg\n", oldest_fid, dt_m, dR_deg);
 }
 
 }

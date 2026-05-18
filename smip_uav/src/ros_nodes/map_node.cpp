@@ -96,13 +96,26 @@ void SurfelMapNode::declare_parameters() {
     this->declare_parameter("grid.initial_bucket_count",    (int)10000);
     this->declare_parameter("grid.max_load_factor",         0.75);
 
+    // FrameBuffer::Config
+    this->declare_parameter("buffer.window_size",           (int)6);
+    this->declare_parameter("buffer.corr_normal_cos",       0.9);
+    this->declare_parameter("buffer.corr_mahal_sq",         2.0);
+    this->declare_parameter("buffer.M_min",                 (int)5);
+    this->declare_parameter("buffer.enable_ba",             true);
+    this->declare_parameter("buffer.ba_max_iters",          (int)5);
+
     // SurfelMap::Config
-    this->declare_parameter("map.prior_w",                  0.1);
-    this->declare_parameter("map.spawn_residual",           0.75);
+    this->declare_parameter("map.prior_w",                  0.01);
+    this->declare_parameter("map.spawn_intensity",          0.5);
+    this->declare_parameter("map.spawn_residual",           0.5);
+    this->declare_parameter("map.converge_obs_min",         (int)25);
+    this->declare_parameter("map.converge_planarity",       0.75);
     this->declare_parameter("map.normal_sigma",             M_PI / 8.0);
-    this->declare_parameter("map.merge_normal_k",           0.5);
+    this->declare_parameter("map.merge_normal_k",           1.0);
+    this->declare_parameter("map.merge_min_planarity",      0.5);
     this->declare_parameter("map.merge_mahal_sq",           3.0);
-    this->declare_parameter("map.merge_interval",           (int)5);
+    this->declare_parameter("map.merge_interval",           (int)10);
+    this->declare_parameter("map.local_map_window",         (int)25);
 }
 
 void SurfelMapNode::load_parameters() {
@@ -130,18 +143,32 @@ void SurfelMapNode::load_parameters() {
     p.max_cluster_dist = (float)this->get_parameter("processor.max_cluster_dist").as_double();
     p.pixel_pitch     = b.pixel_pitch; // same sensor — no separate param needed
 
+    auto& f = cfg_.fbuff_cfg;
+    f.window_size     = (size_t)this->get_parameter("buffer.window_size").as_int();
+    f.corr_normal_cos = (float)this->get_parameter("buffer.corr_normal_cos").as_double();
+    f.corr_mahal_sq   = (float)this->get_parameter("buffer.corr_mahal_sq").as_double();
+    f.M_min           = (size_t)this->get_parameter("buffer.M_min").as_int();
+    f.enable_ba       = this->get_parameter("buffer.enable_ba").as_bool();
+    f.ba_max_iters    = (size_t)this->get_parameter("buffer.ba_max_iters").as_int();
+    f.voxel_size      = (float)this->get_parameter("grid.voxel_size").as_double();
+
     auto& s = cfg_.smap_cfg;
-    s.prior_W = (float)this->get_parameter("map.prior_w").as_double();
-    s.spawn_residual = (float)this->get_parameter("map.spawn_residual").as_double();
-    s.normal_sigma = (float)this->get_parameter("map.normal_sigma").as_double();
-    s.merge_normal_k = (float)this->get_parameter("map.merge_normal_k").as_double();
-    s.merge_mahal_sq = (float)this->get_parameter("map.merge_mahal_sq").as_double();
-    s.merge_interval = (int32_t)this->get_parameter("map.merge_interval").as_int();
+    s.prior_W             = (float)this->get_parameter("map.prior_w").as_double();
+    s.spawn_intensity     = (float)this->get_parameter("map.spawn_intensity").as_double();
+    s.spawn_residual      = (float)this->get_parameter("map.spawn_residual").as_double();
+    s.converge_obs_min    = (uint32_t)this->get_parameter("map.converge_obs_min").as_int();
+    s.converge_planarity  = (float)this->get_parameter("map.converge_planarity").as_double();
+    s.normal_sigma        = (float)this->get_parameter("map.normal_sigma").as_double();
+    s.merge_normal_k      = (float)this->get_parameter("map.merge_normal_k").as_double();
+    s.merge_min_planarity = (float)this->get_parameter("map.merge_min_planarity").as_double();
+    s.merge_mahal_sq      = (float)this->get_parameter("map.merge_mahal_sq").as_double();
+    s.merge_interval      = (int32_t)this->get_parameter("map.merge_interval").as_int();
+    s.local_map_window    = (int32_t)this->get_parameter("map.local_map_window").as_int();
 
     auto& g = s.grid_config;
-    g.voxel_size = (float)this->get_parameter("grid.voxel_size").as_double();
+    g.voxel_size           = (float)this->get_parameter("grid.voxel_size").as_double();
     g.initial_bucket_count = (size_t)this->get_parameter("grid.initial_bucket_count").as_int();
-    g.max_load_factor = (float)this->get_parameter("grid.max_load_factor").as_double();
+    g.max_load_factor      = (float)this->get_parameter("grid.max_load_factor").as_double();
 }
 
 bool SurfelMapNode::get_transform(const rclcpp::Time& stamp) {
@@ -199,11 +226,11 @@ void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2
     process(timestamp_ns);
 
     // temp
-    track_ch_.publish(current_buffer_viz_, this->get_clock()->now());
-    if (current_committed_.size() == 1) {
-        rclcpp::Time tcomm(current_committed_[0].timestamp);
-        surfel_ch_.publish(current_committed_[0].surfels, tcomm);
-    }
+    // track_ch_.publish(current_buffer_viz_, this->get_clock()->now());
+    // if (current_committed_.size() == 1) {
+    //     rclcpp::Time tcomm(current_committed_[0].timestamp);
+    //     surfel_ch_.publish(current_committed_[0].surfels, tcomm);
+    // }
 }
 
 void SurfelMapNode::process(int64_t timestamp_ns) {
@@ -217,7 +244,7 @@ void SurfelMapNode::process(int64_t timestamp_ns) {
 
     // Process the frame (Local surfel extraction)
     current_frame_surfels_ = fproc_->process(current_frame_);
-
+    
     // Update buffer containing recent local surfels
     current_committed_ = fbuff_->push(current_frame_surfels_, tf_, timestamp_ns);
 
@@ -228,14 +255,15 @@ void SurfelMapNode::process(int64_t timestamp_ns) {
     for (auto& c : current_committed_) {
         smap_->update_map(c.surfels, c.pose, c.timestamp);
     }
-
-    // Update surfel map
     const double t_update = clock_.toc();
+
+
     // RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
     //     "SurfelMap Update Time (total): %f - Surfels in Frame: %ld - Map Size: %ld", 
     //     t_update, current_frame_surfels_.size(), 
     //     smap_->surfel_count()
     // );
+    
     RCLCPP_INFO(this->get_logger(),
         "SurfelMap Update Time (total): %f - Surfels in Frame: %ld - Map Size: %ld", 
         t_update, current_frame_surfels_.size(), 
@@ -261,6 +289,8 @@ void SurfelMapNode::process(int64_t timestamp_ns) {
     //     RCLCPP_WARN(this->get_logger(),
     //     "TRACK PERCENTAGE BELOW 25 --- (%.1f%%)", p_track);
     // }
+
+    track_ch_.publish(current_buffer_viz_, t_msg_);
 }
 
 void SurfelMapNode::publish_map() {
@@ -275,11 +305,10 @@ void SurfelMapNode::publish_map() {
             static_cast<uint32_t>(current_frame_.H)}, this->get_clock()->now());
     }
 
-    // surfel_ch_.publish(current_frame_surfels_, t_msg_);
-    // if (current_committed_.size() == 1) {
-    //     rclcpp::Time tcomm(current_committed_[0].timestamp);
-    //     surfel_ch_.publish(current_committed_[0].surfels, tcomm);
-    // }
+    if (current_committed_.size() == 1) {
+        rclcpp::Time tcomm(current_committed_[0].timestamp);
+        surfel_ch_.publish(current_committed_[0].surfels, tcomm);
+    }
     auto deleted_snapshot = smap_->deleted_ids();
     map_ch_.publish(MapSurfelDelta{smap_->get_updated_surfels(), std::move(deleted_snapshot)}, this->get_clock()->now());
     // track_ch_.publish(current_buffer_viz_, this->get_clock()->now());

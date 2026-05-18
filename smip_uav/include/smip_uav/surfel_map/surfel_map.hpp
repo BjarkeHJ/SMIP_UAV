@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <memory>
+#include <deque>
 #include <unordered_set>
 #include "surfel_map/frame_builder.hpp"
 #include "surfel_map/frame_processor.hpp"
@@ -15,13 +16,15 @@ public:
     struct Config {
         VoxelGrid::Config grid_config;
 
+        int32_t local_map_window{25}; // frames to retain in local map
+
         // init
         float prior_W{0.01f};
         Eigen::Matrix3f prior_S2_scale{Eigen::Matrix3f::Identity() * 1e-3f};
 
         // GMM: E-step
         float spawn_intensity{0.5f}; // higher = easier spawn new surfels (expected surfels/m3 in unmapped area)
-        float spawn_residual{0.75f}; // r_new threshold to spawn new surfel
+        float spawn_residual{0.5f}; // r_new threshold to spawn new surfel
 
         // M-step
         uint32_t converge_obs_min{25};  // Minimum obs_count before a surfel can be marked converged
@@ -30,12 +33,11 @@ public:
         // Normal alignment - shared angular scale for E-step and merge
         float normal_sigma{static_cast<float>(M_PI) / 8.0f}; // std-dev of normal Gaussian (rad)
 
-        float merge_normal_k{0.5f}; // merge threshold at k*sigma — must be < E-step 1-sigma
-        float merge_min_planarity{0.9f};
-
         // Merge
+        float merge_normal_k{1.0f}; // merge threshold at k*sigma — must be < E-step 1-sigma
+        float merge_min_planarity{0.5f};
         float merge_mahal_sq{3.0f}; // mahalanobis threshold for merging
-        int32_t merge_interval{-1}; // frames between merge passes
+        int32_t merge_interval{10}; // frames between merge passes
     };
 
     SurfelMap() = default;
@@ -94,6 +96,10 @@ private:
 
     // Maps surfel id -> its current voxel key (kept in sync with the grid)
     std::unordered_map<uint32_t, VoxelKey> surfel_home_;
+
+    // Rolling local map: per-frame unique voxel key lists + reference-counted union
+    std::deque<std::vector<VoxelKey>>                   active_voxel_window_;
+    std::unordered_map<VoxelKey, uint8_t, VoxelKeyHash> local_map_voxels_;
 
     // Config
     Config cfg_;

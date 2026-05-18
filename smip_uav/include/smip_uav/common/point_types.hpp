@@ -148,7 +148,9 @@ struct MapSurfel {
         Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(sigma);
         if (eig.info() != Eigen::Success) return false;
 
+        // const float sigma_n_max = 0.05f;
         eigenvalues = eig.eigenvalues().cwiseMax(1e-8f);
+        // eigenvalues[0] = std::min(eigenvalues[0], sigma_n_max);  // surface prior: squish normal dir
         const Eigen::Matrix3f V = eig.eigenvectors();
         sigma = V * eigenvalues.asDiagonal() * V.transpose();
 
