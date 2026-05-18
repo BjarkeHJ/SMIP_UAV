@@ -64,7 +64,6 @@ bool VoxelGrid::remove(const VoxelKey& key) {
     return voxels_.erase(key) > 0;
 }
 
-
 size_t VoxelGrid::total_surfel_count() const {
     size_t total = 0;
     for (const auto& [key, voxel] : voxels_) {

@@ -29,9 +29,9 @@ private:
     void send_once();
 
     // std::string path_config_{"forklift.path"};
-    // std::string path_config_{"warehouse.path"};
+    std::string path_config_{"warehouse.path"};
     // std::string path_config_{"tank.path"};
-    std::string path_config_{"statue_of_liberty.path"};
+    // std::string path_config_{"statue_of_liberty.path"};
 
     geometry_msgs::msg::Quaternion yaw2quat(float yaw) {
         geometry_msgs::msg::Quaternion q;

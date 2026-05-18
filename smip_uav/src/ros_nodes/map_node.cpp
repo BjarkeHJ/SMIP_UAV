@@ -98,9 +98,7 @@ void SurfelMapNode::declare_parameters() {
 
     // SurfelMap::Config
     this->declare_parameter("map.prior_w",                  0.1);
-    this->declare_parameter("map.pi_spawn",                 0.005);
     this->declare_parameter("map.spawn_residual",           0.75);
-    this->declare_parameter("map.spawn_alpha",              0.1);
     this->declare_parameter("map.normal_sigma",             M_PI / 8.0);
     this->declare_parameter("map.merge_normal_k",           0.5);
     this->declare_parameter("map.merge_mahal_sq",           3.0);
@@ -134,13 +132,11 @@ void SurfelMapNode::load_parameters() {
 
     auto& s = cfg_.smap_cfg;
     s.prior_W = (float)this->get_parameter("map.prior_w").as_double();
-    s.pi_spawn = (float)this->get_parameter("map.pi_spawn").as_double();
     s.spawn_residual = (float)this->get_parameter("map.spawn_residual").as_double();
-    s.spawn_alpha = (float)this->get_parameter("map.spawn_alpha").as_double();
     s.normal_sigma = (float)this->get_parameter("map.normal_sigma").as_double();
     s.merge_normal_k = (float)this->get_parameter("map.merge_normal_k").as_double();
     s.merge_mahal_sq = (float)this->get_parameter("map.merge_mahal_sq").as_double();
-    s.merge_interval = (uint32_t)this->get_parameter("map.merge_interval").as_int();
+    s.merge_interval = (int32_t)this->get_parameter("map.merge_interval").as_int();
 
     auto& g = s.grid_config;
     g.voxel_size = (float)this->get_parameter("grid.voxel_size").as_double();

@@ -5,25 +5,25 @@ namespace smip_uav {
 SurfelMap::SurfelMap(const Config& cfg) : cfg_(cfg) {
     grid_ = std::make_unique<VoxelGrid>(cfg_.grid_config);
 
+    // Constants computed by construction
     log_2pi_1_5_ = 1.5f * std::log(2.0f * static_cast<float>(M_PI));
-    const float vs = cfg_.grid_config.voxel_size;
-    const float V_voxel = vs * vs * vs;
-    log_lambda_new_ = std::log(cfg_.pi_spawn) - std::log(V_voxel);
-
-    const float sigma_n = cfg_.normal_sigma;
-    inv_2_sigma_n_sq_ = 1.0f / (2.0f * sigma_n * sigma_n);
-    merge_normal_cos_ = std::cos(cfg_.merge_normal_k * sigma_n);
+    log_lambda_new_ = std::log(cfg_.spawn_intensity);
+    inv_2_sigma_n_sq_ = 1.0f / (2.0f * cfg_.normal_sigma * cfg_.normal_sigma);
+    merge_normal_cos_ = std::cos(cfg_.merge_normal_k * cfg_.normal_sigma );
 }
 
 void SurfelMap::update_map(const std::vector<FrameSurfel>& frame_surfels, const Eigen::Isometry3f& pose, int64_t timestamp_ns) {
     if (frame_surfels.empty()) return;
+    
+    frame_count_++;
 
     integrate(frame_surfels, pose, timestamp_ns);
 
-    frame_count_++;
     if (cfg_.merge_interval > 0 && (frame_count_ % cfg_.merge_interval) == 0) {
         merge();
     }
+
+    revoxel_drifted_surfels();
 }
 
 void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const Eigen::Isometry3f& pose, int64_t timestamp_ns) {
@@ -43,7 +43,6 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
         // accumulate weighted observations into each responsible component
         for (const auto& entry : resp_) {
             if (entry.r < 0.25f) continue; // only merge into significant responsibility
-            // if (entry.r < 1e-6f) continue;
 
             // Update accumulated stats
             auto& acc = accums_[entry.component];
@@ -96,7 +95,6 @@ float SurfelMap::compute_responsibilities(const FrameSurfel& fs_w, std::vector<R
             MapSurfel& ms = voxel.surfels[i];
 
             // Soft normal penalty: log N(theta; 0, sigma_n) via small-angle approx theta^2 ~ 2(1-cos)
-            // Avoids acos in hot path; inv_2_sigma_n_sq_ = 1/(2*sigma_n^2), shared with merge threshold.
             const float dot_n = fs_w.normal.dot(ms.normal);
             const float log_p_normal = -2.0f * (1.0f - dot_n) * inv_2_sigma_n_sq_;
 
@@ -118,11 +116,9 @@ float SurfelMap::compute_responsibilities(const FrameSurfel& fs_w, std::vector<R
         }
     };
 
-    // collect candidates from center voxel + 6-conn-nbs (modifies resp_out)
+    // Lookup the Surfel center in the VoxelGrid and search 
     const VoxelKey key = grid_->to_key(fs_w.centroid);
-    if (Voxel* v = grid_->get(key)) search_voxel(*v); // search center voxel
-    
-    // grid_->for_each_nb6(key, [&](const VoxelKey&, Voxel& v) { search_voxel(v); }); // search nb-6 / nb-26 voxels
+    if (Voxel* v = grid_->get(key)) search_voxel(*v);
     
     if (resp_out.empty()) {
         return 1.0f; // no candidates at all - entire resp goes to spawn
@@ -130,7 +126,6 @@ float SurfelMap::compute_responsibilities(const FrameSurfel& fs_w, std::vector<R
 
     // Normalize component log-priors by local neighbourhood total weight so that
     // log(W_j) -> log(W_j / sum_W), keeping the fixed spawn hypothesis calibrated
-    // as the map matures and individual W_j values grow without bound.
     float sum_W = 0.0f;
     for (const auto& e : resp_out) {
         sum_W += e.component->W;
@@ -140,21 +135,14 @@ float SurfelMap::compute_responsibilities(const FrameSurfel& fs_w, std::vector<R
         e.log_r_tilde -= log_sum_W;
     }
 
-    // local stick-breaking adjustment to spawn-intensity
-    // Densly mapped area: sum_W goes -> up log_stick goes down
-    const float log_stick = std::log(cfg_.spawn_alpha) - std::log(cfg_.spawn_alpha + sum_W);
-    const float log_lambda_new_local = log_lambda_new_ + log_stick;
-
     // find max log value for numerical stability
-    // float max_log = log_lambda_new_;
-    float max_log = log_lambda_new_local;
+    float max_log = log_lambda_new_;
     for (const auto& e : resp_out) {
         max_log = std::max(max_log, e.log_r_tilde);
     }
 
     // exponentiate and sum
-    // float sum = std::exp(log_lambda_new_ - max_log); // spawn hypothesis
-    float sum = std::exp(log_lambda_new_local - max_log); // spawn hypothesis
+    float sum = std::exp(log_lambda_new_ - max_log); // spawn hypothesis
     for (auto& e : resp_out) {
         e.r = std::exp(e.log_r_tilde - max_log);
         sum += e.r;
@@ -166,8 +154,7 @@ float SurfelMap::compute_responsibilities(const FrameSurfel& fs_w, std::vector<R
         e.r *= inv_sum;
     }
 
-    // const float r_new = std::exp(log_lambda_new_ - max_log) * inv_sum;
-    const float r_new = std::exp(log_lambda_new_local - max_log) * inv_sum;
+    const float r_new = std::exp(log_lambda_new_ - max_log) * inv_sum;
     return r_new;
 }
 
@@ -201,9 +188,11 @@ void SurfelMap::spawn(const FrameSurfel& fs_w, int64_t timestamp_ns) {
         voxel.remove_at(min_idx);
         deleted_ids_.insert(evicted_id);
         updated_ids_.erase(evicted_id);
+        surfel_home_.erase(evicted_id);
     }
 
     if (voxel.try_add(ms)) {
+        surfel_home_[ms.id] = key;
         updated_ids_.insert(ms.id);
     }
 }
@@ -216,6 +205,8 @@ void SurfelMap::merge() {
         uint8_t victim_idx;
     };
     std::vector<MergePair> pairs;
+
+    std::cout << "merge call" << std::endl;
 
     const float tau_n = 0.1f * cfg_.grid_config.voxel_size;
     auto should_merge = [&](const MapSurfel& a, const MapSurfel& b) -> bool {
@@ -313,9 +304,14 @@ void SurfelMap::merge() {
         if (removed_ids.count(victim.id)) continue;
         if (removed_ids.count(mp.survivor->id)) continue;
 
+        // mp.survivor->W += victim.W;
+        // mp.survivor->S1 += victim.S1;
+        // mp.survivor->S2 += victim.S2;
+
         mp.survivor->W += victim.W;
-        mp.survivor->S1 += victim.S1;
-        mp.survivor->S2 += victim.S2;
+        mp.survivor->S1 = mp.survivor->W * mp.survivor->mu;
+        mp.survivor->S2 = mp.survivor->W * (mp.survivor->mu * mp.survivor->mu.transpose() + mp.survivor->sigma);
+
         mp.survivor->reconstruct();
 
         mp.survivor->obs_count = std::max(mp.survivor->obs_count, victim.obs_count);
@@ -325,11 +321,71 @@ void SurfelMap::merge() {
         removed_ids.insert(victim.id);
         deleted_ids_.insert(victim.id);
         updated_ids_.erase(victim.id);
+        surfel_home_.erase(victim.id);
         updated_ids_.insert(mp.survivor->id); // survivor was modified
         victim_voxel->remove_at(mp.victim_idx);
     }
 
     if (!pairs.empty()) cache_dirty_ = true;
+}
+
+void SurfelMap::revoxel_drifted_surfels() {
+    struct MoveTask {
+        MapSurfel surfel;  // full copy taken before any grid mutation
+        VoxelKey  old_key;
+    };
+    std::vector<MoveTask> tasks;
+
+    for (const auto& [ms_ptr, _] : accums_) {
+        const auto it = surfel_home_.find(ms_ptr->id);
+        if (it == surfel_home_.end()) continue;
+
+        const VoxelKey old_key = it->second;
+        const VoxelKey new_key = grid_->to_key(ms_ptr->mu);
+        if (new_key == old_key) continue;
+
+        tasks.push_back({ *ms_ptr, old_key });
+    }
+
+    for (auto& t : tasks) {
+        const VoxelKey new_key = grid_->to_key(t.surfel.mu);
+
+        // Check capacity in target voxel before committing to the move.
+        // If the mover can't win eviction, leave it in its current (slightly wrong) voxel.
+        Voxel* new_voxel_ptr = grid_->get(new_key);
+        if (new_voxel_ptr && new_voxel_ptr->full()) {
+            uint8_t min_idx = 0;
+            for (uint8_t i = 1; i < new_voxel_ptr->count; ++i) {
+                if (new_voxel_ptr->surfels[i].W < new_voxel_ptr->surfels[min_idx].W) min_idx = i;
+            }
+            if (t.surfel.W <= new_voxel_ptr->surfels[min_idx].W) continue;
+
+            deleted_ids_.insert(new_voxel_ptr->surfels[min_idx].id);
+            updated_ids_.erase(new_voxel_ptr->surfels[min_idx].id);
+            surfel_home_.erase(new_voxel_ptr->surfels[min_idx].id);
+            new_voxel_ptr->remove_at(min_idx);
+        }
+
+        // Remove from old voxel — search by id since swap-with-last may have shifted indices
+        if (Voxel* old_voxel = grid_->get(t.old_key)) {
+            for (uint8_t i = 0; i < old_voxel->count; ++i) {
+                if (old_voxel->surfels[i].id == t.surfel.id) {
+                    old_voxel->remove_at(i);
+                    break;
+                }
+            }
+        }
+        deleted_ids_.insert(t.surfel.id);
+        updated_ids_.erase(t.surfel.id);
+        surfel_home_.erase(t.surfel.id);
+
+        // Insert into the correct voxel
+        Voxel& new_voxel = grid_->get_or_create(new_key);
+        if (MapSurfel* inserted = new_voxel.try_add(t.surfel)) {
+            surfel_home_[inserted->id] = new_key;
+            updated_ids_.insert(inserted->id);
+        }
+    }
 }
 
 FrameSurfel SurfelMap::transform_surfel_to_world(const FrameSurfel& fs, const Eigen::Isometry3f& pose) const {

@@ -12,7 +12,7 @@ public:
         // S(z) = r_target / (pixel_pitch * z), clamped to [S_min, S_max].
         float  r_target{0.3f};    // [m]  target physical surfel radius
         size_t S_min{4};          // [px] minimum pixel seed spacing (dense far-range limit)
-        size_t S_max{20};         // [px] maximum pixel seed spacing (sparse near-range / no-depth fallback)
+        size_t S_max{10};         // [px] maximum pixel seed spacing (sparse near-range / no-depth fallback)
 
         size_t perturb_window{1};
         size_t min_px{12};

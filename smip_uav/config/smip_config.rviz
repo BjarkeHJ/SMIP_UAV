@@ -59,9 +59,13 @@ Visualization Manager:
         All Enabled: true
         base_link:
           Value: true
+        ground:
+          Value: true
         lidar_frame:
           Value: true
         odom:
+          Value: true
+        tof:
           Value: true
       Marker Scale: 1
       Name: TF
@@ -71,7 +75,11 @@ Visualization Manager:
       Tree:
         odom:
           base_link:
+            ground:
+              {}
             lidar_frame:
+              {}
+            tof:
               {}
       Update Interval: 0
       Value: true
@@ -203,6 +211,34 @@ Visualization Manager:
         Reliability Policy: Best Effort
         Value: /smip/map_surfel
       Value: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 25; 255; 0
+      Enabled: true
+      Head Diameter: 0.30000001192092896
+      Head Length: 0.20000000298023224
+      Length: 0.30000001192092896
+      Line Style: Lines
+      Line Width: 0.029999999329447746
+      Name: Path
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 85; 255
+      Pose Style: None
+      Radius: 0.029999999329447746
+      Shaft Diameter: 0.10000000149011612
+      Shaft Length: 0.10000000149011612
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /smip/drone_path
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 154; 153; 150
@@ -249,25 +285,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 24.808307647705078
+      Distance: 30.49677848815918
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 3.897195816040039
-        Y: -1.3893107175827026
-        Z: 1.4333090782165527
+        X: 3.501448392868042
+        Y: -2.5373449325561523
+        Z: -0.4778590202331543
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.25985997915267944
+      Pitch: 0.5598601698875427
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 3.219423294067383
+      Yaw: 1.8344477415084839
     Saved: ~
 Window Geometry:
   Displays:

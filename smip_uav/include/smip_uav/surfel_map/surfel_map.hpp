@@ -20,23 +20,22 @@ public:
         Eigen::Matrix3f prior_S2_scale{Eigen::Matrix3f::Identity() * 1e-3f};
 
         // GMM: E-step
-        // float pi_spawn{0.005f}; // spawn prior - higher = easier spawn new surfels
-        float pi_spawn{0.01f}; // spawn prior - higher = easier spawn new surfels
+        float spawn_intensity{0.5f}; // higher = easier spawn new surfels (expected surfels/m3 in unmapped area)
         float spawn_residual{0.75f}; // r_new threshold to spawn new surfel
-        float spawn_alpha{0.1f}; // local "stick" concentration - must be same order as W*
 
         // M-step
-        uint32_t converge_obs_min{10};  // Minimum obs_count before a surfel can be marked converged
+        uint32_t converge_obs_min{25};  // Minimum obs_count before a surfel can be marked converged
         float converge_planarity{0.75f};// Planarity threshold to mark surfel as converged
 
         // Normal alignment - shared angular scale for E-step and merge
         float normal_sigma{static_cast<float>(M_PI) / 8.0f}; // std-dev of normal Gaussian (rad)
+
         float merge_normal_k{0.5f}; // merge threshold at k*sigma — must be < E-step 1-sigma
-        float merge_min_planarity{0.8f};
+        float merge_min_planarity{0.9f};
 
         // Merge
         float merge_mahal_sq{3.0f}; // mahalanobis threshold for merging
-        uint32_t merge_interval{5}; // frames between merge passes
+        int32_t merge_interval{-1}; // frames between merge passes
     };
 
     SurfelMap() = default;
@@ -72,6 +71,7 @@ private:
     float compute_responsibilities(const FrameSurfel& fs_w, std::vector<RespEntry>& resp_out);
     void spawn(const FrameSurfel& fs_w, int64_t timestamp_ns);
     void merge();
+    void revoxel_drifted_surfels();
 
     // Helpers
     FrameSurfel transform_surfel_to_world(const FrameSurfel& fs, const Eigen::Isometry3f& pose) const;
@@ -90,7 +90,10 @@ private:
 
     // Incremental deltas
     std::unordered_set<uint32_t> updated_ids_;   // new or updated since last get_updated_surfels() call
-    std::unordered_set<uint32_t> deleted_ids_; // removed since last get_updated_surfels() call
+    std::unordered_set<uint32_t> deleted_ids_;   // removed since last get_updated_surfels() call
+
+    // Maps surfel id -> its current voxel key (kept in sync with the grid)
+    std::unordered_map<uint32_t, VoxelKey> surfel_home_;
 
     // Config
     Config cfg_;
