@@ -14,7 +14,10 @@
 #include "surfel_map/frame_builder.hpp"
 #include "surfel_map/frame_processor.hpp"
 #include "surfel_map/frame_buffer.hpp"
+#include "surfel_map/surfel_map_localizer.hpp"
 #include "surfel_map/surfel_map.hpp"
+
+#include "common/se3_utils.hpp"
 #include "common/stop_watch.hpp"
 #include "viz_utils/viz_utils.hpp"
 
@@ -26,6 +29,7 @@ public:
         FrameBuilder::Config fbuild_cfg;
         FrameProcessor::Config fproc_cfg;
         FrameBuffer::Config fbuff_cfg;
+        SurfelMapLocalizer::Config mloc_cfg;
         SurfelMap::Config smap_cfg;
 
         std::string map_frame;
@@ -54,6 +58,7 @@ private:
     std::unique_ptr<FrameBuilder> fbuild_;
     std::unique_ptr<FrameProcessor> fproc_;
     std::unique_ptr<FrameBuffer> fbuff_;
+    std::unique_ptr<SurfelMapLocalizer> mloc_;
     std::unique_ptr<SurfelMap> smap_;
 
     // ROS2
@@ -68,7 +73,10 @@ private:
     // Buffers/Variables
     rclcpp::Time t_msg_;
     std::vector<PointXYZ> pts_;
+    
     Eigen::Isometry3f tf_;
+    Eigen::Isometry3f T_map_odom_{Eigen::Isometry3f::Identity()};
+
     Frame current_frame_;
     std::vector<FrameSurfel> current_frame_surfels_;
     std::vector<CommittedSurfels> current_committed_;

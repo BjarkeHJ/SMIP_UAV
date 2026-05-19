@@ -80,6 +80,7 @@ add_executable(
     src/surfel_map/frame_buffer.cpp
     src/surfel_map/voxel_grid.cpp
     src/surfel_map/surfel_map.cpp
+    src/surfel_map/surfel_map_localizer.cpp
 )
 ament_target_dependencies(
   ${SMIP_EXEC}

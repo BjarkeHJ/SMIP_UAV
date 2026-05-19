@@ -82,7 +82,8 @@ void FrameBuilder::estimate_normals(Frame& frame) {
         if (!px_nb.valid) return {false, {}};
         
         const float r_avg = 0.5f * (cur_depth + px_nb.depth); // average depth
-        const float tau = 2.0f * r_avg * pp + config_.edge_depth_min; // multiplier of 2 to increase tolerance
+        // const float tau = 2.0f * r_avg * pp + config_.edge_depth_min; // multiplier of 2 to increase tolerance
+        const float tau = r_avg * pp + config_.edge_depth_min;
         if (std::fabs(px_nb.depth - cur_depth) > tau) return {false, {}};
  
         return {true, px_nb.pos3d};

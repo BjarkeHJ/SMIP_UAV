@@ -23,22 +23,15 @@ struct VoxelKey {
 
 struct VoxelKeyHash {
     size_t operator()(const VoxelKey& k) const {
-        // spread bits of each coordinate then interleave
-        auto spread = [](uint32_t v) -> uint64_t {
-            uint64_t x = v;
-            x = (x | x << 32) & 0x1f00000000ffff;
-            x = (x | x << 16) & 0x1f0000ff0000ff;
-            x = (x | x << 8)  & 0x100f00f00f00f00f;
-            x = (x | x << 4)  & 0x10c30c30c30c30c3;
-            x = (x | x << 2)  & 0x1249249249249249;
-            return x;
-        };
-        return spread(k.x) | (spread(k.y) << 1) | (spread(k.z) << 2);
+        size_t h = static_cast<uint32_t>(k.x);
+        h ^= static_cast<uint32_t>(k.y) * 2654435761u;
+        h ^= static_cast<uint32_t>(k.z) * 805459861u;
+        return h;
     }
 };
 
 struct Voxel {
-    static constexpr uint8_t MAX_NUM_SURFELS_PER_VOXEL = 10;
+    static constexpr uint8_t MAX_NUM_SURFELS_PER_VOXEL = 6;
 
     std::array<MapSurfel, MAX_NUM_SURFELS_PER_VOXEL> surfels;
     uint8_t count{0};

@@ -126,6 +126,8 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
         }
     }
 
+    std::cout << "Size of local map (n voxels): " << local_map_voxels_.size() << std::endl;
+
     cache_dirty_ = true;
 }
 
@@ -159,7 +161,8 @@ float SurfelMap::compute_responsibilities(const FrameSurfel& fs_w, std::vector<R
     // Lookup the Surfel center in the VoxelGrid and search 
     const VoxelKey key = grid_->to_key(fs_w.centroid);
     if (Voxel* v = grid_->get(key)) search_voxel(*v);
-    
+    grid_->for_each_nb6(key, [&](const VoxelKey&, Voxel& v) { search_voxel(v); });
+
     if (resp_out.empty()) {
         return 1.0f; // no candidates at all - entire resp goes to spawn
     }
@@ -362,14 +365,10 @@ void SurfelMap::merge() {
         if (removed_ids.count(victim.id)) continue;
         if (removed_ids.count(mp.survivor->id)) continue;
 
-        // mp.survivor->W += victim.W;
-        // mp.survivor->S1 += victim.S1;
-        // mp.survivor->S2 += victim.S2;
-
         mp.survivor->W += victim.W;
-        mp.survivor->S1 = mp.survivor->W * mp.survivor->mu;
-        mp.survivor->S2 = mp.survivor->W * (mp.survivor->mu * mp.survivor->mu.transpose() + mp.survivor->sigma);
-
+        mp.survivor->S1 += victim.S1;
+        mp.survivor->S2 += victim.S2;
+        
         mp.survivor->reconstruct();
 
         mp.survivor->obs_count = std::max(mp.survivor->obs_count, victim.obs_count);

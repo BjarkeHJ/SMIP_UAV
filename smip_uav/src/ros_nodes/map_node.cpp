@@ -26,6 +26,7 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
     fproc_ = std::make_unique<FrameProcessor>(cfg_.fproc_cfg);
     fbuff_ = std::make_unique<FrameBuffer>(cfg_.fbuff_cfg);
     smap_ = std::make_unique<SurfelMap>(cfg_.smap_cfg);
+    mloc_ = std::make_unique<SurfelMapLocalizer>(cfg_.mloc_cfg, *smap_);
 
     // ROS2 TF
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
@@ -103,6 +104,7 @@ void SurfelMapNode::declare_parameters() {
     this->declare_parameter("buffer.M_min",                 (int)5);
     this->declare_parameter("buffer.enable_ba",             true);
     this->declare_parameter("buffer.ba_max_iters",          (int)5);
+    this->declare_parameter("buffer.ba_huber_delta",        1.345);
 
     // SurfelMap::Config
     this->declare_parameter("map.prior_w",                  0.01);
@@ -150,6 +152,7 @@ void SurfelMapNode::load_parameters() {
     f.M_min           = (size_t)this->get_parameter("buffer.M_min").as_int();
     f.enable_ba       = this->get_parameter("buffer.enable_ba").as_bool();
     f.ba_max_iters    = (size_t)this->get_parameter("buffer.ba_max_iters").as_int();
+    f.ba_huber_delta  = (float)this->get_parameter("buffer.ba_huber_delta").as_double();
     f.voxel_size      = (float)this->get_parameter("grid.voxel_size").as_double();
 
     auto& s = cfg_.smap_cfg;
@@ -246,36 +249,65 @@ void SurfelMapNode::process(int64_t timestamp_ns) {
     current_frame_surfels_ = fproc_->process(current_frame_);
     
     // Update buffer containing recent local surfels
+    bool loc = false;
     current_committed_ = fbuff_->push(current_frame_surfels_, tf_, timestamp_ns);
-
-    // Snapshot buffer tracking state for visualization
-    current_buffer_viz_ = fbuff_->get_buffer_viz();
-
-    // Update SurfelMap with Surfels
+    SurfelMapLocalizer::Result loc_result;
     for (auto& c : current_committed_) {
-        smap_->update_map(c.surfels, c.pose, c.timestamp);
+        // initial guess: previous correction composed with drone pose estimate
+        const Eigen::Isometry3f T_ms_prior = T_map_odom_ * c.pose;
+
+        // Bootstrap: skip ICP until we have enough converged surfels
+        Eigen::Isometry3f T_ms_refined = T_ms_prior;
+        if (smap_->surfel_count() > 100) {
+            loc_result = mloc_->localize(c.surfels, T_ms_prior);
+            if (loc_result.localized) {
+                T_ms_refined = interpolate_se3(T_ms_prior, loc_result.pose, loc_result.confidence);
+                T_map_odom_ = T_ms_refined * c.pose.inverse();
+            }
+        }
+
+        // Update map with corrected pose
+        // smap_->update_map(c.surfels, c.pose, c.timestamp);
+        smap_->update_map(c.surfels, T_ms_refined, c.timestamp);
     }
     const double t_update = clock_.toc();
 
+    if (!loc_result.localized) {
+        RCLCPP_WARN(this->get_logger(), "DID NOT LOCALIZE!");
+    }
+    RCLCPP_INFO(this->get_logger(),
+        "[SurfelMapLocalization] Input: %ld, inliers: %ld, confidence: %.2f, residual: %.2f, cond_number: %.2f, iters: %ld",
+        loc_result.total_input,
+        loc_result.inliers,
+        loc_result.confidence,
+        loc_result.final_residual,
+        loc_result.cond_number,
+        loc_result.iters
+    );
+
+    RCLCPP_INFO(this->get_logger(),
+            "SurfelMap Update Time (total): %f - Surfels in Frame: %ld - Map Size: %ld", 
+            t_update, current_frame_surfels_.size(), 
+            smap_->surfel_count()
+    );
+
+
+    // Snapshot buffer tracking state for visualization
+    // current_buffer_viz_ = fbuff_->get_buffer_viz();
 
     // RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
     //     "SurfelMap Update Time (total): %f - Surfels in Frame: %ld - Map Size: %ld", 
     //     t_update, current_frame_surfels_.size(), 
     //     smap_->surfel_count()
     // );
+
     
-    RCLCPP_INFO(this->get_logger(),
-        "SurfelMap Update Time (total): %f - Surfels in Frame: %ld - Map Size: %ld", 
-        t_update, current_frame_surfels_.size(), 
-        smap_->surfel_count()
-    );
-    
-    size_t out_count = 0;
-    size_t original_total = 0;
-    for (auto& c : current_committed_) {
-        out_count += c.surfels.size();
-        original_total += c.original_count;
-    }
+    // size_t out_count = 0;
+    // size_t original_total = 0;
+    // for (auto& c : current_committed_) {
+    //     out_count += c.surfels.size();
+    //     original_total += c.original_count;
+    // }
 
     // const float p_track = original_total > 0 ? 100.0f * out_count / original_total : 0.0f;
     // RCLCPP_INFO(this->get_logger(),
@@ -290,7 +322,7 @@ void SurfelMapNode::process(int64_t timestamp_ns) {
     //     "TRACK PERCENTAGE BELOW 25 --- (%.1f%%)", p_track);
     // }
 
-    track_ch_.publish(current_buffer_viz_, t_msg_);
+    // track_ch_.publish(current_buffer_viz_, t_msg_);
 }
 
 void SurfelMapNode::publish_map() {

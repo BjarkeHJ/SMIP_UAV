@@ -41,6 +41,7 @@ public:
 
         bool enable_ba{true};
         size_t ba_max_iters{5};
+        float ba_huber_delta{1.345f};
     };
 
 

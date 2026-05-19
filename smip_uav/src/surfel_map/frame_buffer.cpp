@@ -375,13 +375,18 @@ void FrameBuffer::run_ba() {
                 if (sigma2 < 1e-10f) continue;
                 const float w = 1.0f / sigma2;
 
+                // Huber loss via IRLS: down-weight residuals beyond delta in whitened space
+                const float r_norm = std::abs(r) / std::sqrt(sigma2);
+                const float w_huber = (r_norm <= cfg_.ba_huber_delta) ? 1.0f : cfg_.ba_huber_delta / r_norm;
+                const float w_eff = w * w_huber;
+
                 // J = [n_j^T,  (mu_w x n_j)^T]   (left SE3 perturbation)
                 Eigen::Matrix<float, 1, 6> J;
                 J.head<3>() = n_j.transpose();
                 J.tail<3>() = mu_w.cross(n_j).transpose();
 
-                H.noalias() += w * J.transpose() * J;
-                b.noalias() += w * J.transpose() * r;
+                H.noalias() += w_eff * J.transpose() * J;
+                b.noalias() += w_eff * J.transpose() * r;
             }
         }
 
