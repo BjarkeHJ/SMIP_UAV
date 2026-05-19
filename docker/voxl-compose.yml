@@ -6,7 +6,7 @@ services:
     privileged: true
     network_mode: host
     ipc: host
-    cpuset: "4-6"
+    cpuset: "4-7"
     ulimits:
       rtprio: 40
     volumes:

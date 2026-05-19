@@ -42,12 +42,12 @@ smip_uav_node:
 
     # ── FrameBuffer::Config ──────────────────────────────────────────────────
     buffer:
-      window_size:          10         # sliding window depth (frames)
+      window_size:          6         # sliding window depth (frames)
       corr_normal_cos:      0.9       # minimum cos(angle) for surfel correspondence
       corr_mahal_sq:        2.0       # squared Mahalanobis distance gate for correspondence
-      M_min:                6         # minimum track length to commit a surfel
+      M_min:                2         # minimum track length to commit a surfel
       enable_ba:            false      # enable bundle-adjustment within the window
-      ba_max_iters:         5         # max BA iterations per window push
+      ba_max_iters:         5          # max BA iterations per window push
 
     # ── SurfelMap::Config (GMM integration) ──────────────────────────────────
     map:

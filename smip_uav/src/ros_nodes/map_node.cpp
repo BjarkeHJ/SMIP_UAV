@@ -249,26 +249,42 @@ void SurfelMapNode::process(int64_t timestamp_ns) {
     current_frame_surfels_ = fproc_->process(current_frame_);
     
     // Update buffer containing recent local surfels
-    bool loc = false;
     current_committed_ = fbuff_->push(current_frame_surfels_, tf_, timestamp_ns);
     SurfelMapLocalizer::Result loc_result;
+
+    // Grace window: allow this many consecutive localization failures before
+    // suppressing map updates. A small window (2-3) lets the system survive
+    // transient failures; suppression beyond it prevents ghost surfels from
+    // contaminating the map at a drifted prior pose.
+    constexpr int kMapUpdateFailStreak = 3;
+
     for (auto& c : current_committed_) {
         // initial guess: previous correction composed with drone pose estimate
         const Eigen::Isometry3f T_ms_prior = T_map_odom_ * c.pose;
 
-        // Bootstrap: skip ICP until we have enough converged surfels
+        // Bootstrap: skip ICP until we have enough surfels
         Eigen::Isometry3f T_ms_refined = T_ms_prior;
-        if (smap_->surfel_count() > 100) {
+        const bool localization_active = (smap_->surfel_count() > 50);
+        if (localization_active) {
             loc_result = mloc_->localize(c.surfels, T_ms_prior);
             if (loc_result.localized) {
                 T_ms_refined = interpolate_se3(T_ms_prior, loc_result.pose, loc_result.confidence);
                 T_map_odom_ = T_ms_refined * c.pose.inverse();
+                loc_fail_streak_ = 0;
+            } else if (loc_result.inliers >= cfg_.mloc_cfg.min_inliers) {
+                // ICP found correspondences but quality/gate failed → prior may be drifted.
+                ++loc_fail_streak_;
             }
+            // inliers == 0: no correspondences (new area not yet mapped).
+            // The prior is still good; allow map updates so the area can be populated.
         }
 
-        // Update map with corrected pose
-        // smap_->update_map(c.surfels, c.pose, c.timestamp);
-        smap_->update_map(c.surfels, T_ms_refined, c.timestamp);
+        // Suppress map updates only during ICP-quality failure streaks (not new-area gaps).
+        // This prevents ghost surfels from being baked in at a drifted prior pose.
+        const bool map_update_ok = !localization_active || (loc_fail_streak_ <= kMapUpdateFailStreak);
+        if (map_update_ok) {
+            smap_->update_map(c.surfels, T_ms_refined, c.timestamp);
+        }
     }
     const double t_update = clock_.toc();
 

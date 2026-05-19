@@ -36,7 +36,7 @@ smip_uav_node:
 
     # ── VoxelGrid::Config ────────────────────────────────────────────────────
     grid:
-      voxel_size:           0.3       # [m] spatial resolution of the map voxels (shared with buffer)
+      voxel_size:           0.1       # [m] spatial resolution of the map voxels (shared with buffer)
       initial_bucket_count: 10000     # hash-map initial bucket reservation
       max_load_factor:      0.75      # hash-map max load factor before rehash
 
@@ -45,8 +45,8 @@ smip_uav_node:
       window_size:          6         # sliding window depth (frames)
       corr_normal_cos:      0.9       # minimum cos(angle) for surfel correspondence
       corr_mahal_sq:        2.0       # squared Mahalanobis distance gate for correspondence
-      M_min:                5         # minimum track length to commit a surfel
-      enable_ba:            true      # enable bundle-adjustment within the window
+      M_min:                2         # minimum track length to commit a surfel
+      enable_ba:            false      # enable bundle-adjustment within the window
       ba_max_iters:         5         # max BA iterations per window push
 
     # ── SurfelMap::Config (GMM integration) ──────────────────────────────────

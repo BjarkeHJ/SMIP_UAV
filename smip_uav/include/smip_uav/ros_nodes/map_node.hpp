@@ -77,6 +77,10 @@ private:
     Eigen::Isometry3f tf_;
     Eigen::Isometry3f T_map_odom_{Eigen::Isometry3f::Identity()};
 
+    // Consecutive localization-failure counter. Map updates are suppressed once
+    // this exceeds the grace window to prevent contaminating the map at drifted poses.
+    int loc_fail_streak_{0};
+
     Frame current_frame_;
     std::vector<FrameSurfel> current_frame_surfels_;
     std::vector<CommittedSurfels> current_committed_;
