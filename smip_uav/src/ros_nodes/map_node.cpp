@@ -38,6 +38,10 @@ SurfelMapNode::SurfelMapNode(const rclcpp::NodeOptions& options) : Node("surfel_
         rclcpp::SensorDataQoS(),
         std::bind(&SurfelMapNode::pointcloud_data_callback, this, std::placeholders::_1)
     );
+    cloud_repub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
+        cfg_.pointcloud_republish_topic, 
+        rclcpp::SensorDataQoS()
+    );
 
     // Publish timer
     if (cfg_.visualization_rate > 0.0) {
@@ -61,12 +65,15 @@ void SurfelMapNode::declare_parameters() {
     this->declare_parameter("odom_frame", "odom");
     this->declare_parameter("sensor_tof_frame", "tof");
     this->declare_parameter("pointcloud_topic", "/tof_pc");
+    this->declare_parameter("pointcloud_republish_topic", "/smip/pointcloud");
+
     this->declare_parameter("simulation", false);
     this->declare_parameter("tf", false);
     this->declare_parameter("visualization_rate", 0.0);
     cfg_.odom_frame = this->get_parameter("odom_frame").as_string();
     cfg_.sensor_tof_frame = this->get_parameter("sensor_tof_frame").as_string();
     cfg_.pointcloud_topic = this->get_parameter("pointcloud_topic").as_string();
+    cfg_.pointcloud_republish_topic = this->get_parameter("pointcloud_republish_topic").as_string();
     cfg_.is_sim = this->get_parameter("simulation").as_bool();
     cfg_.has_external_tf = this->get_parameter("tf").as_bool();
     cfg_.visualization_rate = this->get_parameter("visualization_rate").as_double();
@@ -102,9 +109,6 @@ void SurfelMapNode::declare_parameters() {
     this->declare_parameter("buffer.corr_normal_cos",       0.9);
     this->declare_parameter("buffer.corr_mahal_sq",         2.0);
     this->declare_parameter("buffer.M_min",                 (int)5);
-    this->declare_parameter("buffer.enable_ba",             true);
-    this->declare_parameter("buffer.ba_max_iters",          (int)5);
-    this->declare_parameter("buffer.ba_huber_delta",        1.345);
 
     // SurfelMap::Config
     this->declare_parameter("map.prior_w",                  0.01);
@@ -118,6 +122,14 @@ void SurfelMapNode::declare_parameters() {
     this->declare_parameter("map.merge_mahal_sq",           3.0);
     this->declare_parameter("map.merge_interval",           (int)10);
     this->declare_parameter("map.local_map_window",         (int)25);
+
+    // Kalman fusion prior covariance
+    this->declare_parameter("localizer.prior_sigma_t_init", 0.5);
+    this->declare_parameter("localizer.prior_sigma_r_init", 0.3);
+    this->declare_parameter("localizer.prior_q_t",          0.005);
+    this->declare_parameter("localizer.prior_q_r",          0.001);
+    this->declare_parameter("localizer.prior_sigma_t_max",  1.0);
+    this->declare_parameter("localizer.prior_sigma_r_max",  0.5);
 }
 
 void SurfelMapNode::load_parameters() {
@@ -150,9 +162,6 @@ void SurfelMapNode::load_parameters() {
     f.corr_normal_cos = (float)this->get_parameter("buffer.corr_normal_cos").as_double();
     f.corr_mahal_sq   = (float)this->get_parameter("buffer.corr_mahal_sq").as_double();
     f.M_min           = (size_t)this->get_parameter("buffer.M_min").as_int();
-    f.enable_ba       = this->get_parameter("buffer.enable_ba").as_bool();
-    f.ba_max_iters    = (size_t)this->get_parameter("buffer.ba_max_iters").as_int();
-    f.ba_huber_delta  = (float)this->get_parameter("buffer.ba_huber_delta").as_double();
     f.voxel_size      = (float)this->get_parameter("grid.voxel_size").as_double();
 
     auto& s = cfg_.smap_cfg;
@@ -172,6 +181,17 @@ void SurfelMapNode::load_parameters() {
     g.voxel_size           = (float)this->get_parameter("grid.voxel_size").as_double();
     g.initial_bucket_count = (size_t)this->get_parameter("grid.initial_bucket_count").as_int();
     g.max_load_factor      = (float)this->get_parameter("grid.max_load_factor").as_double();
+
+    cfg_.prior_sigma_t_init = (float)this->get_parameter("localizer.prior_sigma_t_init").as_double();
+    cfg_.prior_sigma_r_init = (float)this->get_parameter("localizer.prior_sigma_r_init").as_double();
+    cfg_.prior_q_t          = (float)this->get_parameter("localizer.prior_q_t").as_double();
+    cfg_.prior_q_r          = (float)this->get_parameter("localizer.prior_q_r").as_double();
+    cfg_.prior_sigma_t_max  = (float)this->get_parameter("localizer.prior_sigma_t_max").as_double();
+    cfg_.prior_sigma_r_max  = (float)this->get_parameter("localizer.prior_sigma_r_max").as_double();
+
+    prior_cov_.setZero();
+    prior_cov_.diagonal().head<3>().setConstant(cfg_.prior_sigma_t_init * cfg_.prior_sigma_t_init);
+    prior_cov_.diagonal().tail<3>().setConstant(cfg_.prior_sigma_r_init * cfg_.prior_sigma_r_init);
 }
 
 bool SurfelMapNode::get_transform(const rclcpp::Time& stamp) {
@@ -187,7 +207,11 @@ bool SurfelMapNode::get_transform(const rclcpp::Time& stamp) {
     }
 }
 
-void SurfelMapNode::pointcloud_data_callback(const sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg) {    
+void SurfelMapNode::pointcloud_data_callback(sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg) {    
+    // Republish pointcloud
+    cloud_msg->header.frame_id = cfg_.sensor_tof_frame;
+    cloud_repub_->publish(*cloud_msg);
+    
     // Get current transform
     if (!get_transform(cloud_msg->header.stamp)) {
         RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
@@ -252,50 +276,71 @@ void SurfelMapNode::process(int64_t timestamp_ns) {
     current_committed_ = fbuff_->push(current_frame_surfels_, tf_, timestamp_ns);
     SurfelMapLocalizer::Result loc_result;
 
-    // Grace window: allow this many consecutive localization failures before
-    // suppressing map updates. A small window (2-3) lets the system survive
-    // transient failures; suppression beyond it prevents ghost surfels from
-    // contaminating the map at a drifted prior pose.
     constexpr int kMapUpdateFailStreak = 3;
 
-    for (auto& c : current_committed_) {
-        // initial guess: previous correction composed with drone pose estimate
-        const Eigen::Isometry3f T_ms_prior = T_map_odom_ * c.pose;
-
-        // Bootstrap: skip ICP until we have enough surfels
-        Eigen::Isometry3f T_ms_refined = T_ms_prior;
-        const bool localization_active = (smap_->surfel_count() > 50);
-        if (localization_active) {
-            loc_result = mloc_->localize(c.surfels, T_ms_prior);
-            if (loc_result.localized) {
-                T_ms_refined = interpolate_se3(T_ms_prior, loc_result.pose, loc_result.confidence);
-                T_map_odom_ = T_ms_refined * c.pose.inverse();
-                loc_fail_streak_ = 0;
-            } else if (loc_result.inliers >= cfg_.mloc_cfg.min_inliers) {
-                // ICP found correspondences but quality/gate failed → prior may be drifted.
-                ++loc_fail_streak_;
-            }
-            // inliers == 0: no correspondences (new area not yet mapped).
-            // The prior is still good; allow map updates so the area can be populated.
+    if (t_prev_ns_ > 0 && current_committed_.surfels.size() > 0) {
+        const float dt = std::clamp(static_cast<float>(timestamp_ns - t_prev_ns_) * 1e-9f, 0.0f, 1.0f);
+        prior_cov_.diagonal().head<3>().array() += cfg_.prior_q_t * dt;
+        prior_cov_.diagonal().tail<3>().array() += cfg_.prior_q_r * dt;
+        const float max_var_t = cfg_.prior_sigma_t_max * cfg_.prior_sigma_t_max;
+        const float max_var_r = cfg_.prior_sigma_r_max * cfg_.prior_sigma_r_max;
+        
+        for (int i = 0; i < 3; ++i) {
+            prior_cov_(i,i) = std::min(prior_cov_(i,i), max_var_t);
         }
 
-        // Suppress map updates only during ICP-quality failure streaks (not new-area gaps).
-        // This prevents ghost surfels from being baked in at a drifted prior pose.
-        const bool map_update_ok = !localization_active || (loc_fail_streak_ <= kMapUpdateFailStreak);
-        if (map_update_ok) {
-            smap_->update_map(c.surfels, T_ms_refined, c.timestamp);
+        for (int i = 3; i < 6; ++i) {
+            prior_cov_(i,i) = std::min(prior_cov_(i,i), max_var_r);
         }
     }
+
+    t_prev_ns_ = timestamp_ns;
+
+    // initial guess: previous correction composed with drone pose estimate
+    const Eigen::Isometry3f T_ms_prior = T_map_odom_ * current_committed_.pose;
+
+    Eigen::Isometry3f T_ms_refined = T_ms_prior;
+    const bool localization_active = (smap_->surfel_count() > 50);
+
+    if (localization_active) {
+        loc_result = mloc_->localize(current_committed_.surfels, T_ms_prior);
+        if (loc_result.localized) {
+            // Kalman-style fusion in tangent space.
+            const Eigen::Matrix<float,6,6> Lambda_post = prior_cov_.inverse() + loc_result.H_icp;
+            const Eigen::Matrix<float,6,6> Sigma_post = Lambda_post.inverse();
+            const Eigen::Matrix<float,6,6> K = Sigma_post * loc_result.H_icp;
+
+            const Eigen::Matrix<float,6,1> delta_xi = log_se3(loc_result.pose * T_ms_prior.inverse());
+            const Eigen::Matrix<float,6,1> delta_xi_fused = K * delta_xi;
+
+            T_ms_refined = exp_se3(delta_xi_fused) * T_ms_prior;
+            T_map_odom_  = T_ms_refined * current_committed_.pose.inverse();
+
+            prior_cov_      = Sigma_post;
+            loc_fail_streak_ = 0;
+        } else if (loc_result.inliers >= cfg_.mloc_cfg.min_inliers) {
+            // ICP found correspondences but quality/gate failed → prior may be drifted.
+            ++loc_fail_streak_;
+        }
+    }
+
+    // Suppress map updates only during ICP-quality failure streaks (not new-area gaps).
+    // This prevents ghost surfels from being baked in at a drifted prior pose.
+    const bool map_update_ok = !localization_active || (loc_fail_streak_ <= kMapUpdateFailStreak);
+    if (map_update_ok) {
+        smap_->update_map(current_committed_.surfels, T_ms_refined, current_committed_.timestamp);
+    }
+
     const double t_update = clock_.toc();
 
     if (!loc_result.localized) {
         RCLCPP_WARN(this->get_logger(), "DID NOT LOCALIZE!");
     }
     RCLCPP_INFO(this->get_logger(),
-        "[SurfelMapLocalization] Input: %ld, inliers: %ld, confidence: %.2f, residual: %.2f, cond_number: %.2f, iters: %ld",
+        "[SurfelMapLocalization] Input: %ld, inliers: %ld, inlier_ratio: %.2f, residual: %.2f, cond_number: %.2f, iters: %ld",
         loc_result.total_input,
         loc_result.inliers,
-        loc_result.confidence,
+        loc_result.inlier_ratio,
         loc_result.final_residual,
         loc_result.cond_number,
         loc_result.iters
@@ -306,39 +351,6 @@ void SurfelMapNode::process(int64_t timestamp_ns) {
             t_update, current_frame_surfels_.size(), 
             smap_->surfel_count()
     );
-
-
-    // Snapshot buffer tracking state for visualization
-    // current_buffer_viz_ = fbuff_->get_buffer_viz();
-
-    // RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
-    //     "SurfelMap Update Time (total): %f - Surfels in Frame: %ld - Map Size: %ld", 
-    //     t_update, current_frame_surfels_.size(), 
-    //     smap_->surfel_count()
-    // );
-
-    
-    // size_t out_count = 0;
-    // size_t original_total = 0;
-    // for (auto& c : current_committed_) {
-    //     out_count += c.surfels.size();
-    //     original_total += c.original_count;
-    // }
-
-    // const float p_track = original_total > 0 ? 100.0f * out_count / original_total : 0.0f;
-    // RCLCPP_INFO(this->get_logger(),
-    //     "buffer: %zu/%zu | tracks: %zu | committed: %zu/%zu (%.1f%%)",
-    //     fbuff_->size(), cfg_.fbuff_cfg.window_size,
-    //     fbuff_->active_track_count(),
-    //     out_count, original_total,
-    //     p_track
-    // );
-    // if (p_track < 25.0f) {
-    //     RCLCPP_WARN(this->get_logger(),
-    //     "TRACK PERCENTAGE BELOW 25 --- (%.1f%%)", p_track);
-    // }
-
-    // track_ch_.publish(current_buffer_viz_, t_msg_);
 }
 
 void SurfelMapNode::publish_map() {
@@ -353,10 +365,10 @@ void SurfelMapNode::publish_map() {
             static_cast<uint32_t>(current_frame_.H)}, this->get_clock()->now());
     }
 
-    if (current_committed_.size() == 1) {
-        rclcpp::Time tcomm(current_committed_[0].timestamp);
-        surfel_ch_.publish(current_committed_[0].surfels, tcomm);
-    }
+
+    rclcpp::Time tcomm(current_committed_.timestamp);
+    surfel_ch_.publish(current_committed_.surfels, tcomm);
+
     auto deleted_snapshot = smap_->deleted_ids();
     map_ch_.publish(MapSurfelDelta{smap_->get_updated_surfels(), std::move(deleted_snapshot)}, this->get_clock()->now());
     // track_ch_.publish(current_buffer_viz_, this->get_clock()->now());

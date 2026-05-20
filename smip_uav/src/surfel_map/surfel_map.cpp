@@ -43,7 +43,7 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
         // accumulate weighted observations into each responsible component
         for (const auto& entry : resp_) {
             // if (entry.r < 0.25f) continue; // only merge into significant responsibility
-            if (entry.r < 0.05f) continue; // only merge into significant responsibility
+            if (entry.r < 0.25f) continue; // only merge into significant responsibility
 
             // Update accumulated stats
             auto& acc = accums_[entry.component];
@@ -60,7 +60,7 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
 
     // M-Step: Apply accumulated deltas, reconstruct params
     for (auto& [ms_ptr, acc] : accums_) {
-        float alpha = std::max(0.001f, std::exp(-static_cast<float>(ms_ptr->obs_count) / static_cast<float>(cfg_.converge_obs_min)));
+        float alpha = std::max(0.02f, std::exp(-static_cast<float>(ms_ptr->obs_count) / static_cast<float>(cfg_.converge_obs_min)));
         float gamma = 1.0f - alpha;
 
         // evolve the map surfel
@@ -73,7 +73,7 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
         // prior. Squishes the normal direction without limiting lateral extent.
         {
             constexpr float kDiskW  = 0.05f;  // pseudo-obs weight per frame
-            constexpr float kSigmaN = 1e-8f;  // target normal variance ~(0.1mm)^2
+            constexpr float kSigmaN = 1e-4f;  // target normal variance ~(1 cm)^2
             const Eigen::Vector3f& n  = ms_ptr->normal;
             const Eigen::Vector3f  mu = ms_ptr->S1 / ms_ptr->W;
             const Eigen::Matrix3f  disk = ms_ptr->sigma + (kSigmaN - ms_ptr->eigenvalues[0]) * (n * n.transpose());
@@ -288,24 +288,11 @@ void SurfelMap::merge() {
         return true;
     };
 
-    const float planarity_floor = cfg_.merge_min_planarity * 0.8f;
-
     for (const auto& [key_a, _] : local_map_voxels_) {
         Voxel* vp_a = grid_->get(key_a);
         if (!vp_a) continue;
         Voxel& voxel_a = *vp_a;
 
-        // Delete stable but non-planar surfels (enough observations yet still below floor = noise)
-        for (int8_t i = (int8_t)voxel_a.count - 1; i >= 0; --i) {
-            const MapSurfel& ms = voxel_a.surfels[i];
-            if (ms.obs_count >= cfg_.converge_obs_min && ms.planarity() < planarity_floor) {
-                deleted_ids_.insert(ms.id);
-                updated_ids_.erase(ms.id);
-                surfel_home_.erase(ms.id);
-                voxel_a.remove_at((uint8_t)i);
-                cache_dirty_ = true;
-            }
-        }
         if (voxel_a.empty()) continue;
 
         // Intra-voxel pairs

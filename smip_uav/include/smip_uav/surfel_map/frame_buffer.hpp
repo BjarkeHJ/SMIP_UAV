@@ -15,7 +15,6 @@ struct CommittedSurfels {
     std::vector<FrameSurfel> surfels;
     std::vector<int32_t> track_ids;
     std::vector<uint8_t> track_sizes;
-    std::vector<uint8_t> is_fused;
     Eigen::Isometry3f pose{Eigen::Isometry3f::Identity()};
     int64_t timestamp{0};
     uint64_t frame_id{0};
@@ -33,22 +32,17 @@ class FrameBuffer {
 public:
     struct Config {
         size_t window_size{6};
-
         float voxel_size{0.25f};
         float corr_normal_cos{0.9f};
         float corr_mahal_sq{2.0f};
-        size_t M_min{2};
-
-        bool enable_ba{true};
-        size_t ba_max_iters{5};
-        float ba_huber_delta{1.345f};
+        size_t M_min{4};
     };
 
 
     FrameBuffer() = default;
     explicit FrameBuffer(const Config& cfg);
 
-    std::vector<CommittedSurfels> push(std::vector<FrameSurfel> surfels, const Eigen::Isometry3f& pose, int64_t timestamp);
+    CommittedSurfels push(std::vector<FrameSurfel> surfels, const Eigen::Isometry3f& pose, int64_t timestamp);
     std::vector<CommittedSurfels> flush();
 
     std::vector<TrackedSurfelViz> get_buffer_viz() const;
@@ -90,12 +84,8 @@ private:
     void rebuild_frame_cache(BufferFrame& bf);
     bool track_confirmed(int32_t track_id) const;
 
-    void run_ba();
-
     Config cfg_;
     std::deque<BufferFrame> slots_;
-    // cached_edge_pairs_[p] holds mutual-best matches between slots_[p] and slots_[p+1].
-    // Maintained in lock-step with slots_: push_back on new pair, pop_front on eviction.
     std::deque<std::vector<MatchEdge>> cached_edge_pairs_;
     uint64_t next_frame_id_{1};
 

@@ -6,6 +6,8 @@ smip_uav_node:
     odom_frame:         "odom"        # Odometry frame (may drift)
     sensor_tof_frame:   "tof"         # ToF sensor frame
     pointcloud_topic:   "/tof_pc"     # Input pointcloud
+    pointcloud_republish_topic:   "/smip/pointcloud"     # Input pointcloud
+
 
     simulation:         false         # Running simulation environment
     tf:                 false         # Complete tf tree available? false if odometry (frd ref)
@@ -36,7 +38,7 @@ smip_uav_node:
 
     # ── VoxelGrid::Config ────────────────────────────────────────────────────
     grid:
-      voxel_size:           0.1       # [m] spatial resolution of the map voxels (shared with buffer)
+      voxel_size:           0.3       # [m] spatial resolution of the map voxels (shared with buffer)
       initial_bucket_count: 10000     # hash-map initial bucket reservation
       max_load_factor:      0.75      # hash-map max load factor before rehash
 
@@ -46,18 +48,16 @@ smip_uav_node:
       corr_normal_cos:      0.9       # minimum cos(angle) for surfel correspondence
       corr_mahal_sq:        2.0       # squared Mahalanobis distance gate for correspondence
       M_min:                2         # minimum track length to commit a surfel
-      enable_ba:            false      # enable bundle-adjustment within the window
-      ba_max_iters:         5         # max BA iterations per window push
 
     # ── SurfelMap::Config (GMM integration) ──────────────────────────────────
     map:
       prior_w:              0.01      # prior weight of new MapSurfel (Dirichlet prior)
-      spawn_intensity:      0.5       # expected surfels/m³ in unmapped area (spawn rate)
+      spawn_intensity:      0.75       # expected surfels/m³ in unmapped area (spawn rate)
       spawn_residual:       0.5       # residual threshold r_new to spawn a new surfel
       converge_obs_min:     25        # minimum observations before convergence check
       converge_planarity:   0.75      # planarity threshold to mark a surfel converged
       normal_sigma:         0.3927    # [rad] std-dev of normal Gaussian (default pi/8)
-      merge_normal_k:       1.0       # merge normal gate at k*sigma (must be <= 1.0)
+      merge_normal_k:       0.5       # merge normal gate at k*sigma (must be <= 1.0)
       merge_min_planarity:  0.5       # minimum planarity for merge candidates
       merge_mahal_sq:       3.0       # squared Mahalanobis distance threshold for merging
       merge_interval:       10        # frames between merge passes

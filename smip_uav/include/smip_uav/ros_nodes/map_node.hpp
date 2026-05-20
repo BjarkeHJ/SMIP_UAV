@@ -36,10 +36,19 @@ public:
         std::string odom_frame;
         std::string sensor_tof_frame;
         std::string pointcloud_topic;
+        std::string pointcloud_republish_topic;
 
         bool is_sim{false};
         bool has_external_tf{false};
         float visualization_rate{0.0f};
+
+        // Kalman-style prior covariance parameters
+        float prior_sigma_t_init{0.5f};   // [m]    initial σ_t at boot
+        float prior_sigma_r_init{0.3f};   // [rad]  initial σ_r at boot
+        float prior_q_t{0.005f};          // [m²/s] translation variance growth rate
+        float prior_q_r{0.001f};          // [rad²/s] rotation variance growth rate
+        float prior_sigma_t_max{1.0f};    // [m]   cap on σ_t
+        float prior_sigma_r_max{0.5f};    // [rad] cap on σ_r
     };
 
     explicit SurfelMapNode(const rclcpp::NodeOptions& opts = rclcpp::NodeOptions());
@@ -49,7 +58,7 @@ public:
 private:
     void declare_parameters();
     void load_parameters();
-    void pointcloud_data_callback(const sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg);
+    void pointcloud_data_callback(sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg);
     bool get_transform(const rclcpp::Time& stamp);
     void process(int64_t timestamp_ns);
     void publish_map();
@@ -65,6 +74,7 @@ private:
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
     std::unique_ptr<tf2_ros::TransformListener> tf_listener_;
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_sub_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_repub_;
     rclcpp::TimerBase::SharedPtr pub_timer_;
 
     // Configuration
@@ -77,13 +87,19 @@ private:
     Eigen::Isometry3f tf_;
     Eigen::Isometry3f T_map_odom_{Eigen::Isometry3f::Identity()};
 
+    // Prior covariance for Kalman-style ICP fusion (6×6, kept symmetric PD).
+    // Diagonal initialised from prior_sigma_{t,r}_init; grows each step via process
+    // noise (q_t, q_r); shrinks to posterior after a successful ICP localization.
+    Eigen::Matrix<float,6,6> prior_cov_{Eigen::Matrix<float,6,6>::Identity()};
+    int64_t t_prev_ns_{0};  // timestamp of previous process() call, for dt
+
     // Consecutive localization-failure counter. Map updates are suppressed once
     // this exceeds the grace window to prevent contaminating the map at drifted poses.
     int loc_fail_streak_{0};
 
     Frame current_frame_;
     std::vector<FrameSurfel> current_frame_surfels_;
-    std::vector<CommittedSurfels> current_committed_;
+    CommittedSurfels current_committed_;
 
     // Initial check for Cloud message field offsets
     struct XYZOffsets {

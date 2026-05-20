@@ -72,7 +72,7 @@ struct Frame {
         std::vector<float> img(pixels.size(), std::numeric_limits<float>::quiet_NaN());
         for (size_t i = 0; i < pixels.size(); ++i) {
             if (!is_valid(pixels[i])) continue;
-            img[i] = pixels[i].pos3d.squaredNorm();
+            img[i] = pixels[i].pos3d.norm();
         }
         return img;
     }

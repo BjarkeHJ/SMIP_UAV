@@ -38,6 +38,7 @@ SurfelMapLocalizer::Result SurfelMapLocalizer::localize(
     float prev_residual = std::numeric_limits<float>::infinity();
     float last_cond = 0.0f;
     size_t last_inliers = 0;
+    Eigen::Matrix<float,6,6> H{Eigen::Matrix<float,6,6>::Zero()};
 
     for (size_t iter = 0; iter < cfg_.max_iters; ++iter) {
         const size_t n_corrs = find_correspondences(surfels_sensor, res.pose, corrs);
@@ -50,7 +51,7 @@ SurfelMapLocalizer::Result SurfelMapLocalizer::localize(
         Eigen::Matrix<float,6,1> dx;
         float residual = 0.0f;
         float cond = 0.0f;
-        if (!solve_step(surfels_sensor, corrs, res.pose, dx, residual, cond)) {
+        if (!solve_step(surfels_sensor, corrs, res.pose, dx, H, residual, cond)) {
             break;
         }
 
@@ -90,19 +91,12 @@ SurfelMapLocalizer::Result SurfelMapLocalizer::localize(
     res.cond_number = last_cond;
 
     // avg(r²/sigma_n²) — computed once, used in both gates below.
-    const float avg_r2 = res.inliers > 0
-        ? res.final_residual / static_cast<float>(res.inliers) : 1e9f;
+    const float avg_r2 = res.inliers > 0 ? res.final_residual / static_cast<float>(res.inliers) : 1e9f;
 
-    // Gate 1 — quality: ICP clearly diverged (large residual regardless of correction size).
-    // Rejects false minima where ICP "converged" to a wrong alignment.
     if (avg_r2 >= cfg_.avg_r2_reject) {
-        return res; // confidence stays 0, localized stays false
+        return res; // localized stays false
     }
 
-    // Gate 2 — plausibility: correction is physically implausible even for a converged ICP.
-    // Catches gross failures in symmetric/degenerate geometry (e.g. long corridor).
-    // Limits are set generously to allow large corrections during fast yaw manoeuvres;
-    // gate 1 already ensures ICP quality is acceptable before this is reached.
     {
         const Eigen::Isometry3f dT = res.pose * prior.inverse();
         const float d_trans = dT.translation().norm();
@@ -113,21 +107,13 @@ SurfelMapLocalizer::Result SurfelMapLocalizer::localize(
         }
     }
 
-    const float inlier_ratio = res.total_input > 0
+    res.inlier_ratio = res.total_input > 0
         ? static_cast<float>(res.inliers) / static_cast<float>(res.total_input)
         : 0.0f;
 
-    const float c_inlier = std::clamp(
-        (inlier_ratio - cfg_.min_inlier_ratio) / (1.0f - cfg_.min_inlier_ratio),
-        0.0f, 1.0f);
+    res.localized = (res.inliers >= cfg_.min_inliers) && (res.inlier_ratio >= cfg_.min_inlier_ratio);
+    res.H_icp = H;
 
-    const float c_resid = std::clamp(
-        1.0f - (avg_r2 - 1.0f) / (cfg_.avg_r2_reject - 1.0f),
-        0.0f, 1.0f);
-
-    res.confidence = c_inlier * c_resid;
-    res.localized = (res.inliers >= cfg_.min_inliers) && (res.confidence > 0.0f);
-        
     return res;
 }
 
@@ -174,17 +160,28 @@ size_t SurfelMapLocalizer::find_correspondences(
                 const float cos_n = n_w.dot(ms.normal);
                 if (cos_n < cfg_.corr_normal_cos) continue;
 
-                // Range range
+                // Range gate
                 const Eigen::Vector3f d = mu_w - ms.mu;
                 if (d.squaredNorm() > max_range_sq) continue;
 
-                // Tangential Mahalanobis
-                const Eigen::Vector3f n_avg = (n_w + ms.normal).normalized();
-                const Eigen::Vector3f d_tan = d - d.dot(n_avg) * n_avg;
-                const Eigen::Matrix3f S = ms.sigma + S_f_w;
-                const float d2 = d_tan.dot(S.ldlt().solve(d_tan));
-                if (!std::isfinite(d2) || d2 < 0.0f) continue;
-                if (d2 >= cfg_.corr_mahal_sq) continue;
+                // ... Same correspondence as the solver optimizes for
+                const Eigen::Vector3f n_sym = (n_w + ms.normal).normalized();
+                const float r_n = n_sym.dot(d);
+                const float sigma2_n = n_sym.dot((ms.sigma + S_f_w) * n_sym);
+                if (sigma2_n < 1e-10f) continue;
+                const float d2 = (r_n * r_n) / sigma2_n;
+                if (d2 >= 3.84f) continue;
+                
+                Eigen::Vector3f d_tan = d - r_n * n_sym;
+                if (d_tan.squaredNorm() > max_range_sq) continue;
+
+                // // Tangential Mahalanobis
+                // const Eigen::Vector3f n_avg = (n_w + ms.normal).normalized();
+                // const Eigen::Vector3f d_tan = d - d.dot(n_avg) * n_avg;
+                // const Eigen::Matrix3f S = ms.sigma + S_f_w;
+                // const float d2 = d_tan.dot(S.ldlt().solve(d_tan));
+                // if (!std::isfinite(d2) || d2 < 0.0f) continue;
+                // if (d2 >= cfg_.corr_mahal_sq) continue;
 
                 // Score: Combine normla alignment and tangential distance (primarily d2)
                 const float score = d2 - 0.1*cos_n;
@@ -192,9 +189,6 @@ size_t SurfelMapLocalizer::find_correspondences(
                     best = &ms;
                     best_score = score;
 
-                    // Pre-compute sigma_n along normal axis for Huber scaling.
-                    // Floor at sigma_n_floor so tight map surfels do not
-                    // over-inflate the whitened residual and kill confidence.
                     const float sigma2_n = ms.normal.dot((ms.sigma + S_f_w) * ms.normal);
                     best_sigma_n = std::max(
                         std::sqrt(std::max(sigma2_n, 1e-10f)),
@@ -215,6 +209,7 @@ bool SurfelMapLocalizer::solve_step(
     const std::vector<Correspondence>& corrs,
     const Eigen::Isometry3f& T_ms,
     Eigen::Matrix<float,6,1>& dx_out,
+    Eigen::Matrix<float,6,6>& H_out,
     float& residual_out,
     float& cond_out) 
 {
@@ -228,10 +223,11 @@ bool SurfelMapLocalizer::solve_step(
         
         // Transform frame surfels centroid to map at current pose
         const Eigen::Vector3f mu_w = T_ms * fs.centroid;
+        const Eigen::Vector3f n_w = T_ms.rotation() * fs.normal;
 
         // Point-to-plane residual
-        const Eigen::Vector3f& n_j = ms.normal;
-        const float r = n_j.dot(mu_w - ms.mu);
+        const Eigen::Vector3f n_sym = (n_w + ms.normal).normalized();
+        const float r = n_sym.dot(mu_w - ms.mu);
 
         // Information weight from anisotropic combined covariance along normal
         const float sigma_n = c.sigma_n;
@@ -240,20 +236,24 @@ bool SurfelMapLocalizer::solve_step(
         // Huber robust loss
         const float r_whitened = std::abs(r) / sigma_n;
         const float w_robust = (r_whitened <= cfg_.huber_k) ? 1.0f : cfg_.huber_k / r_whitened;
-        const float w = w_info * w_robust;
+        
+        const float w_view = std::max(fs.view_cos_theta, 0.1f);
+        const float w_qual = fs.weight;
+
+        const float w = w_info * w_robust * w_view * w_qual;
 
         // Jacobian for left SE3 pertubation
         Eigen::Matrix<float,1,6> J;
-        J.head<3>() = n_j.transpose();
-        J.tail<3>() = mu_w.cross(n_j).transpose();
+        J.head<3>() = n_sym.transpose();
+        J.tail<3>() = mu_w.cross(n_sym).transpose();
 
         H.noalias() += w * J.transpose() * J;
         b.noalias() += w * J.transpose() * r;
         r_sq_sum += w_info * r * r; // un-robustified for convergence check
     }
 
-    // Tikhonov for rank-deficient geometry (e.g. single-plane lock)
-    H.diagonal().array() += cfg_.tikhonov;
+    H.diagonal().array() += 1e-6f; // small regularization for numerical stability
+    H_out = H;
 
     // Conditioning diagnostic
     Eigen::SelfAdjointEigenSolver<Eigen::Matrix<float,6,6>> eig(H);
