@@ -30,15 +30,17 @@ void FrameProcessor::init_seeds(const Frame& f) {
     seeds_.clear();
     const int hw = static_cast<int>(config_.perturb_window);
 
-    // Adaptive raster walk: step size S(z) = r_target / (pixel_pitch * z)
-    // so each cluster covers ~r_target metres in 3D regardless of range.
-    size_t v = config_.S_min / 2 + 1;
+    std::uniform_int_distribution<size_t> offset_dist(0, config_.S_min - 1);
+    const size_t u_offset = offset_dist(rng_);
+    const size_t v_offset = offset_dist(rng_);
+
+    size_t v = v_offset + config_.S_min / 2 + 1;
     while (v < f.H) {
         // Representative depth for vertical step: sample centre column of this row.
         const float d_row = f(f.W / 2, v).valid ? f(f.W / 2, v).depth : 0.0f;
         const size_t S_row = compute_S_local(d_row);
 
-        size_t u = config_.S_min / 2 + 1;
+        size_t u = u_offset + config_.S_min / 2 + 1;
         while (u < f.W) {
             // Local depth at candidate — fall back to nearby pixels if invalid.
             float d_here = f(u, v).valid ? f(u, v).depth : 0.0f;
@@ -54,14 +56,22 @@ void FrameProcessor::init_seeds(const Frame& f) {
             const size_t S_local = compute_S_local(d_here);
             const float inv_S_local_sq = 1.0f / (static_cast<float>(S_local) * static_cast<float>(S_local));
 
+            // Per-seed independent jitter: offset the gradient-min search centre
+            // within ±S_local/3 so adjacent seeds can't overlap (spacing is S_local).
+            const int jitter_half = static_cast<int>(S_local) / 3;
+            const int ju = std::uniform_int_distribution<int>(-jitter_half, jitter_half)(rng_);
+            const int jv = std::uniform_int_distribution<int>(-jitter_half, jitter_half)(rng_);
+            const int u_cand = std::clamp(static_cast<int>(u) + ju, 0, static_cast<int>(f.W) - 1);
+            const int v_cand = std::clamp(static_cast<int>(v) + jv, 0, static_cast<int>(f.H) - 1);
+
             // Perturb to the pixel with the lowest depth gradient in the window.
             const int hw_eff = std::min(hw, static_cast<int>(S_local / 2 + 1));
             float best_grad = std::numeric_limits<float>::max();
             int best_u = -1, best_v = -1;
             for (int dv = -hw_eff; dv <= hw_eff; ++dv) {
                 for (int du = -hw_eff; du <= hw_eff; ++du) {
-                    const int cu = static_cast<int>(u) + du;
-                    const int cv = static_cast<int>(v) + dv;
+                    const int cu = u_cand + du;
+                    const int cv = v_cand + dv;
                     if (cu < 0 || cu >= static_cast<int>(f.W) || cv < 0 || cv >= static_cast<int>(f.H)) continue;
                     if (!f(cu, cv).valid) continue;
                     const float g = depth_gradient(f, cu, cv);

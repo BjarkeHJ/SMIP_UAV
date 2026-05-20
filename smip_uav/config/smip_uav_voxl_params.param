@@ -29,16 +29,16 @@ smip_uav_node:
     # ── FrameProcessor::Config ───────────────────────────────────────────────
     processor:
       S_min:                4          # [px] minimum pixel seed spacing (dense far-range limit)
-      S_max:                15         # [px] maximum pixel seed spacing (sparse near-range / no-depth fallback)
+      S_max:                20         # [px] maximum pixel seed spacing (sparse near-range / no-depth fallback)
       perturb_window:       1         # [px] local window for seed perturbation
-      min_px:               6        # minimum pixels per surfel segment
+      min_px:               4        # minimum pixels per surfel segment
       w_spatial:            1.0       # weight of spatial distance in assignment cost
       w_normal:             1.0       # weight of normal distance in assignment cost
       max_cluster_dist:     1.0       # maximum assignment cost to join a cluster
 
     # ── VoxelGrid::Config ────────────────────────────────────────────────────
     grid:
-      voxel_size:           0.3       # [m] spatial resolution of the map voxels (shared with buffer)
+      voxel_size:           0.5       # [m] spatial resolution of the map voxels (shared with buffer)
       initial_bucket_count: 10000     # hash-map initial bucket reservation
       max_load_factor:      0.75      # hash-map max load factor before rehash
 

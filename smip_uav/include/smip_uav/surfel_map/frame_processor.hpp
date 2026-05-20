@@ -2,6 +2,7 @@
 #define FRAME_PROCESSOR_HPP_
 
 #include "common/point_types.hpp"
+#include <random>
 
 namespace smip_uav {
 
@@ -117,7 +118,8 @@ private:
     std::vector<float> distances_;
     // State
     Config config_;
-    
+    std::mt19937 rng_{std::random_device{}()};
+
 
 };
 
