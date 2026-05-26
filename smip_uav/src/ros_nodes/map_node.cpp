@@ -98,17 +98,17 @@ void SurfelMapNode::declare_parameters() {
     this->declare_parameter("processor.w_spatial",          1.0);
     this->declare_parameter("processor.w_normal",           1.0);
     this->declare_parameter("processor.max_cluster_dist",   1.0);
-
-    // VoxelGrid::Config
-    this->declare_parameter("grid.voxel_size",              0.25);
-    this->declare_parameter("grid.initial_bucket_count",    (int)10000);
-    this->declare_parameter("grid.max_load_factor",         0.75);
-
+    
     // FrameBuffer::Config
     this->declare_parameter("buffer.window_size",           (int)6);
     this->declare_parameter("buffer.corr_normal_cos",       0.9);
     this->declare_parameter("buffer.corr_mahal_sq",         2.0);
     this->declare_parameter("buffer.M_min",                 (int)5);
+
+    // VoxelGrid::Config
+    this->declare_parameter("grid.voxel_size",              0.25);
+    this->declare_parameter("grid.initial_bucket_count",    (int)10000);
+    this->declare_parameter("grid.max_load_factor",         0.75);
 
     // SurfelMap::Config
     this->declare_parameter("map.prior_w",                  0.01);

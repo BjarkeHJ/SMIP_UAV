@@ -20,8 +20,9 @@ endif()
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(SMIP_EXEC smip_uav_node)
-set(TRAJ_EXEC trajectory_node)
+set(FRAME_EXEC smip_frame_node)
+set(MAP_EXEC smip_map_node)
+set(TRAJ_EXEC smip_trajectory_node)
 
 find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
@@ -57,9 +58,35 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 )
 ament_export_dependencies(rosidl_default_runtime)
 
-# SurfelMap + Planner
+# ----- Frame node -----
 set(
-    DEPS
+    FRAMEDEPS
+    rclcpp
+    tf2_ros
+    tf2_eigen
+    sensor_msgs
+)
+add_executable(
+    ${FRAME_EXEC}
+    src/exec/frame_exec.cpp
+    src/ros_nodes/frame_node.cpp
+    src/surfel_map/frame_builder.cpp
+    src/surfel_map/frame_processor.cpp
+    src/surfel_map/frame_buffer.cpp
+)
+ament_target_dependencies(
+    ${FRAME_EXEC}
+    ${FRAMEDEPS}
+)
+target_link_libraries(
+    ${FRAME_EXEC}
+    Eigen3::Eigen
+    OpenMP::OpenMP_CXX
+)
+
+# ----- SurfelMap node -----
+set(
+    MAPDEPS
     rclcpp
     tf2_ros
     tf2_eigen
@@ -69,10 +96,9 @@ set(
     visualization_msgs
     px4_msgs
 )
-
 add_executable(
-    ${SMIP_EXEC}
-    src/smip_exec.cpp
+    ${MAP_EXEC}
+    src/exec/smip_exec.cpp
     src/ros_nodes/map_node.cpp
     src/ros_nodes/voxl_tf_node.cpp
     src/surfel_map/frame_builder.cpp
@@ -83,11 +109,11 @@ add_executable(
     src/surfel_map/surfel_map_localizer.cpp
 )
 ament_target_dependencies(
-  ${SMIP_EXEC}
-  ${DEPS}
+  ${MAP_EXEC}
+  ${MAPDEPS}
 )
 target_link_libraries(
-    ${SMIP_EXEC}
+    ${MAP_EXEC}
     Eigen3::Eigen
     OpenMP::OpenMP_CXX
 )
@@ -114,7 +140,7 @@ rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typ
 target_link_libraries(${TRAJ_EXEC} ${cpp_typesupport_target})
 
 install(
-  TARGETS ${SMIP_EXEC} ${TRAJ_EXEC}
+  TARGETS ${FRAME_EXEC} ${MAP_EXEC} ${TRAJ_EXEC}
   DESTINATION lib/${PROJECT_NAME}
 )
 

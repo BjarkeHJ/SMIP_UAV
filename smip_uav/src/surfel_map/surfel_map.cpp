@@ -436,7 +436,6 @@ FrameSurfel SurfelMap::transform_surfel_to_world(const FrameSurfel& fs, const Ei
     const Eigen::Matrix3f& R = pose.rotation();
     
     FrameSurfel fs_w;
-    fs_w.sid = fs.sid;
     fs_w.centroid = pose * fs.centroid;
     fs_w.normal = R * fs.normal;
     fs_w.R = R * fs.R * R.transpose();

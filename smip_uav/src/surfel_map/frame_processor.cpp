@@ -388,7 +388,6 @@ std::vector<FrameSurfel> FrameProcessor::aggregate() const {
         const Eigen::Matrix3f R = C / Neff + (sigma_r * sigma_r) * (normal * normal.transpose());
 
         // Fill surfel
-        slots[k].sid = static_cast<uint32_t>(k); // index as id - no shared counter across threads
         slots[k].centroid = centroid;
         slots[k].normal = normal;
         slots[k].R = R;

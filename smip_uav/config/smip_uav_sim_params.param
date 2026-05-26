@@ -2,11 +2,11 @@ smip_uav_node:
   ros__parameters:
 
     # ── ROS interface ────────────────────────────────────────────────────────
-    map_frame:          "map"           # Fixed reference frame after correction
-    odom_frame:         "odom"          # Odometry frame (may drift)
-    sensor_tof_frame:   "lidar_frame"                      # ToF sensor frame
-    pointcloud_topic:   "/x500/lidar_front/points_raw"     # Input pointcloud
-    pointcloud_republish_topic:   "/smip/pointcloud"     # Input pointcloud
+    map_frame:                    "map"                              # Fixed reference frame after correction
+    odom_frame:                   "odom"                             # Odometry frame (may drift)
+    sensor_tof_frame:             "lidar_frame"                      # ToF sensor frame
+    pointcloud_topic:             "/x500/lidar_front/points_raw"     # Input pointcloud
+    pointcloud_republish_topic:   "/smip/pointcloud"                 # Input pointcloud
 
     simulation:         true         # Running simulation environment
     tf:                 false        # Complete tf tree available? false if odometry (frd ref)

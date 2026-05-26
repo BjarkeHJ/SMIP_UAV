@@ -97,15 +97,14 @@ struct Frame {
 };
 
 struct FrameSurfel {
-    uint32_t sid{0};
     Eigen::Vector3f centroid;
     Eigen::Vector3f normal;
     Eigen::Matrix3f R; // Measurement uncertainty model
     Eigen::Vector3f eigenvalues; // Geometrical Covariance Eigenvalues
     Eigen::Matrix3f eigenvectors; //                       Eigenvectors
     Eigen::Matrix3f C_shape;     // Geometric covariance
-    float weight;
-    float view_cos_theta;
+    float weight;               // Measurment quality
+    float view_cos_theta;       // Measurement orthogonality score
 };
 
 struct MapSurfel {

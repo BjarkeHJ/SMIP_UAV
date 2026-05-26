@@ -16,8 +16,8 @@ def generate_launch_description():
 
     smip_node = Node(
         package='smip_uav',
-        executable='smip_uav_node',
-        name='smip_uav_node',
+        executable='smip_map_node',
+        name='smip_map_node',
         output='screen',
         parameters=[LaunchConfiguration('config_file'), {'use_sim_time': True}],
         # parameters=[LaunchConfiguration('config_file')],
