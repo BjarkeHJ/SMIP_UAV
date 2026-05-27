@@ -370,7 +370,8 @@ void SurfelMapNode::publish_map() {
     surfel_ch_.publish(current_committed_.surfels, tcomm);
 
     auto deleted_snapshot = smap_->deleted_ids();
-    map_ch_.publish(MapSurfelDelta{smap_->get_updated_surfels(), std::move(deleted_snapshot)}, this->get_clock()->now());
+    // map_ch_.publish(MapSurfelDelta{smap_->get_updated_surfels(), std::move(deleted_snapshot)}, this->get_clock()->now());
+    map_ch_.publish(MapSurfelDelta{smap_->get_updated_surfels(), std::move(deleted_snapshot)}, tcomm);
     // track_ch_.publish(current_buffer_viz_, this->get_clock()->now());
 }
 
