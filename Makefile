@@ -78,6 +78,11 @@ BUILDER := smip-multiarch-builder
 
 .PHONY: setup-build-tools
 setup-build-tools:
+	@echo "==> Adding current user to the 'docker' group (no more sudo make)..."
+	@REAL_USER=$${SUDO_USER:-$$(whoami)}; \
+	getent group docker | grep -qw "$$REAL_USER" \
+		&& echo "    $$REAL_USER already in docker group, skipping." \
+		|| (usermod -aG docker "$$REAL_USER" && echo "    Added $$REAL_USER. Reboot for it to take effect.")
 	@echo "==> Installing QEMU user-static for multi-arch support"
 	docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 	@echo "==> Creating buildx builder..."
