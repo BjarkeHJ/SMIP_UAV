@@ -42,7 +42,6 @@ void SurfelMap::integrate(const std::vector<FrameSurfel>& frame_surfels, const E
 
         // accumulate weighted observations into each responsible component
         for (const auto& entry : resp_) {
-            // if (entry.r < 0.25f) continue; // only merge into significant responsibility
             if (entry.r < 0.25f) continue; // only merge into significant responsibility
 
             // Update accumulated stats

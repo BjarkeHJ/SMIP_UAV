@@ -161,8 +161,9 @@ void VoxlTfNode::px4_odom_callback(const px4_msgs::msg::VehicleOdometry::SharedP
 {
     // PX4 VehicleOdometry: position in NED, body orientation FRD→NED.
     // Timestamp is µs from system start; convert to ROS nanoseconds.
-    // rclcpp::Time stamp(static_cast<int64_t>(msg->timestamp) * 1000LL);
-    rclcpp::Time stamp = this->get_clock()->now();
+
+    rclcpp::Time stamp(static_cast<int64_t>(msg->timestamp) * 1000LL); // USE THIS FOR ROSBAGS
+    // rclcpp::Time stamp = this->get_clock()->now(); // USE THIS FOR LIVE FLIGHT
 
     // NED → ENU: x=East, y=North, z=Up
     const double x =  msg->position[1];

@@ -197,17 +197,15 @@ void SurfelMapNode::load_parameters() {
 bool SurfelMapNode::get_transform(const rclcpp::Time& stamp) {
     try {
         auto transform = tf_buffer_->lookupTransform(cfg_.odom_frame, cfg_.sensor_tof_frame, stamp, rclcpp::Duration::from_nanoseconds(20'000'000));
-        // auto transform = tf_buffer_->lookupTransform(cfg_.odom_frame, cfg_.sensor_tof_frame, tf2::TimePointZero);
         tf_ = tf2::transformToEigen(transform.transform).cast<float>();
         return true;
     }
     catch (const tf2::TransformException& ex) {
-        // RCLCPP_WARN(this->get_logger(), "TF lookup failed: %s", ex.what());
         return false;
     }
 }
 
-void SurfelMapNode::pointcloud_data_callback(sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg) {    
+void SurfelMapNode::pointcloud_data_callback(sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg) {
     // Republish pointcloud
     cloud_msg->header.frame_id = cfg_.sensor_tof_frame;
     cloud_repub_->publish(*cloud_msg);
@@ -332,6 +330,8 @@ void SurfelMapNode::process(int64_t timestamp_ns) {
     }
 
     const double t_update = clock_.toc();
+
+    if (current_frame_surfels_.size() == 0) return; // Dont print debug for no input
 
     if (!loc_result.localized) {
         RCLCPP_WARN(this->get_logger(), "DID NOT LOCALIZE!");
