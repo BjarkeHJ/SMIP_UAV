@@ -59,20 +59,20 @@ void FrameNode::declare_parameters() {
     // FrameBuilder::Config
     this->declare_parameter("builder.tof_res_x",            (int)180);
     this->declare_parameter("builder.tof_res_y",            (int)240);
-    this->declare_parameter("builder.min_range",            0.3);
+    this->declare_parameter("builder.min_range",            0.5);
     this->declare_parameter("builder.max_range",            10.0);
     this->declare_parameter("builder.pixel_pitch",          0.01071);
     this->declare_parameter("builder.enable_ground_filter", false);
-    this->declare_parameter("builder.ground_z_min",         0.01);
+    this->declare_parameter("builder.ground_z_min",         0.1);
     this->declare_parameter("builder.ds_factor",            (int)1);
     this->declare_parameter("builder.edge_normal_th",       0.52);
     this->declare_parameter("builder.edge_depth_min",       0.02);
 
     // FrameProcessor::Config
     this->declare_parameter("processor.S_min",              (int)4);
-    this->declare_parameter("processor.S_max",              (int)30);
+    this->declare_parameter("processor.S_max",              (int)15);
     this->declare_parameter("processor.perturb_window",     (int)1);
-    this->declare_parameter("processor.min_px",             (int)12);
+    this->declare_parameter("processor.min_px",             (int)6);
     this->declare_parameter("processor.w_spatial",          1.0);
     this->declare_parameter("processor.w_normal",           1.0);
     this->declare_parameter("processor.max_cluster_dist",   1.0);
@@ -81,10 +81,10 @@ void FrameNode::declare_parameters() {
     this->declare_parameter("buffer.window_size",           (int)6);
     this->declare_parameter("buffer.corr_normal_cos",       0.9);
     this->declare_parameter("buffer.corr_mahal_sq",         2.0);
-    this->declare_parameter("buffer.M_min",                 (int)5);
+    this->declare_parameter("buffer.M_min",                 (int)4);
 
     // TODO: Make a different parameter
-    this->declare_parameter("grid.voxel_size",              0.25);
+    this->declare_parameter("grid.voxel_size",              0.5);
 }
 
 void FrameNode::load_parameters() {

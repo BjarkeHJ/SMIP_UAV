@@ -1,4 +1,4 @@
-smip_uav_node:
+smip_map_node:
   ros__parameters:
 
     # ── ROS interface ────────────────────────────────────────────────────────

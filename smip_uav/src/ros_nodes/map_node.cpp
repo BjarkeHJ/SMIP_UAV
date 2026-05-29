@@ -208,6 +208,9 @@ bool SurfelMapNode::get_transform(const rclcpp::Time& stamp) {
 }
 
 void SurfelMapNode::pointcloud_data_callback(sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg) {    
+
+    return;
+
     // Republish pointcloud
     cloud_msg->header.frame_id = cfg_.sensor_tof_frame;
     cloud_repub_->publish(*cloud_msg);
