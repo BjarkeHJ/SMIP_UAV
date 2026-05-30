@@ -36,7 +36,7 @@ public:
     SurfelExtractor() : SurfelExtractor(Config{}) {}
     explicit SurfelExtractor(const Config& cfg);
 
-    std::vector<Surfel> extract(const Frame& frame);
+    void extract(Frame& frame);
 
     const std::vector<int32_t>& labels() const { return labels_; }
 

@@ -25,6 +25,7 @@ ActiveMapNode::ActiveMapNode() : Node("active_map_node") {
 
     // Component Initialization
     frame_processor_ = std::make_unique<FrameProcessor>();
+    surfel_extractor_ = std::make_unique<SurfelExtractor>();
 
     // RO2 Sub/Pub
     cloud_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
@@ -52,7 +53,8 @@ void ActiveMapNode::pointcloud_callback(sensor_msgs::msg::PointCloud2::SharedPtr
     frame_processor_->process(*frame);
 
     // Extract Surfels from Frame
-    
+    surfel_extractor_->extract(*frame);
+
     // Relay Frame ownership to ActiveSubMap
 
 

@@ -11,6 +11,7 @@
 
 #include "core/frame.hpp"
 #include "active_map/frame_processor.hpp"
+#include "active_map/surfel_extractor.hpp"
 
 namespace smip_uav {
 
@@ -32,6 +33,7 @@ private:
 
     // Components
     std::unique_ptr<FrameProcessor> frame_processor_;
+    std::unique_ptr<SurfelExtractor> surfel_extractor_;
 
     // PointCloud message offsets (cached)
     XYZOffsets xyz_off_;

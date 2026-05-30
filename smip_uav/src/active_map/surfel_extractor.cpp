@@ -8,10 +8,10 @@ SurfelExtractor::SurfelExtractor(const Config& cfg) : cfg_(cfg) {
         b.reserve(43200 / BucketQueue::NUM_BUCKETS);
 }
 
-std::vector<Surfel> SurfelExtractor::extract(const Frame& frame) {
+void SurfelExtractor::extract(Frame& frame) {
     W_ = frame.meta.width;
     H_ = frame.meta.height;
-    if (W_ == 0 || H_ == 0) return {};
+    if (W_ == 0 || H_ == 0) return;
 
     const size_t N = W_ * H_;
     labels_.assign(N, -1);
@@ -26,7 +26,9 @@ std::vector<Surfel> SurfelExtractor::extract(const Frame& frame) {
     init_seeds(frame);
     assign_pixels(frame);
     update_seeds(frame);
-    return aggregate();
+
+    // Finalize surfel in frame
+    frame.surfels = aggregate();
 }
 
 // ---------------------------------------------------------------------------
