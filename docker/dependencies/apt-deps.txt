@@ -14,3 +14,6 @@
 
 # Package: libeigen3-dev needed in: smip_uav
 libeigen3-dev
+
+# Package: libnanoflann-dev needed in: smip_uav::FrozenSubmap
+libnanoflann-dev

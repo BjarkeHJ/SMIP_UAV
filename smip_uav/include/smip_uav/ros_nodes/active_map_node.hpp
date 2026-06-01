@@ -10,8 +10,8 @@
 #include <omp.h>
 
 #include "core/frame.hpp"
-#include "active_map/frame_processor.hpp"
-#include "active_map/surfel_extractor.hpp"
+#include "mapping/frame_processor.hpp"
+#include "mapping/surfel_extractor.hpp"
 
 namespace smip_uav {
 

@@ -1,4 +1,4 @@
-#include "active_map/frame_processor.hpp"
+#include "mapping/frame_processor.hpp"
 
 namespace smip_uav {
 

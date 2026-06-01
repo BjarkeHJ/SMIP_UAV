@@ -1,4 +1,4 @@
-#include "active_map/surfel_extractor.hpp"
+#include "mapping/surfel_extractor.hpp"
 #include <omp.h>
 
 namespace smip_uav {
@@ -195,13 +195,13 @@ void SurfelExtractor::update_seeds(const Frame& f) {
     // -----------------------------------------------------------------------
     {
         const int nthreads = omp_get_max_threads();
-        std::vector<std::vector<SeedAccum>> tlocal(nthreads,
-                                                    std::vector<SeedAccum>(N_seeds));
- 
+        tlocal_.resize(nthreads);
+        for (auto& t : tlocal_) { t.resize(N_seeds); for (auto& a : t) a.reset(); }
+
         #pragma omp parallel
         {
             const int tid = omp_get_thread_num();
-            auto& local = tlocal[tid];
+            auto& local = tlocal_[tid];
  
             #pragma omp for schedule(static)
             for (size_t v = 0; v < H_; ++v) {
@@ -220,20 +220,25 @@ void SurfelExtractor::update_seeds(const Frame& f) {
                     const float w = f.pixels.weights[j] * huber_scale;
  
                     auto& a     = local[label];
-                    a.sum_pos   += w * pos;
-                    a.sum_nrm   += w * nrm;
-                    a.sum_outer += w * pos * pos.transpose();
-                    a.sum_w     += w;
+                    a.sum_pos      += w * pos;
+                    a.sum_nrm      += w * nrm;
+                    a.outer[0]     += w * pos.x() * pos.x();
+                    a.outer[1]     += w * pos.x() * pos.y();
+                    a.outer[2]     += w * pos.x() * pos.z();
+                    a.outer[3]     += w * pos.y() * pos.y();
+                    a.outer[4]     += w * pos.y() * pos.z();
+                    a.outer[5]     += w * pos.z() * pos.z();
+                    a.sum_w        += w;
                     a.count++;
                 }
             }
         } // end parallel (implicit barrier)
- 
+
         // Serial reduction across threads
         std::vector<SeedAccum> pass1(N_seeds);
         for (int t = 0; t < nthreads; ++t)
             for (size_t k = 0; k < N_seeds; ++k)
-                pass1[k].merge(tlocal[t][k]);
+                pass1[k].merge(tlocal_[t][k]);
  
         // Eigensolve: derive planes_ from pass-1 statistics
         #pragma omp parallel for schedule(dynamic, 4)
@@ -243,7 +248,7 @@ void SurfelExtractor::update_seeds(const Frame& f) {
  
             const Eigen::Vector3f centroid = a.sum_pos / a.sum_w;
             const Eigen::Matrix3f cov =
-                a.sum_outer / a.sum_w - centroid * centroid.transpose();
+                a.sum_outer_matrix() / a.sum_w - centroid * centroid.transpose();
  
             Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(cov);
             if (eig.info() != Eigen::Success) continue;
@@ -275,13 +280,13 @@ void SurfelExtractor::update_seeds(const Frame& f) {
     // -----------------------------------------------------------------------
     {
         const int nthreads = omp_get_max_threads();
-        std::vector<std::vector<SeedAccum>> tlocal(nthreads,
-                                                    std::vector<SeedAccum>(N_seeds));
- 
+        tlocal_.resize(nthreads);
+        for (auto& t : tlocal_) { t.resize(N_seeds); for (auto& a : t) a.reset(); }
+
         #pragma omp parallel
         {
             const int tid = omp_get_thread_num();
-            auto& local = tlocal[tid];
+            auto& local = tlocal_[tid];
  
             #pragma omp for schedule(static)
             for (size_t v = 0; v < H_; ++v) {
@@ -315,18 +320,23 @@ void SurfelExtractor::update_seeds(const Frame& f) {
                     }
  
                     auto& a     = local[label];
-                    a.sum_pos   += w * pos;
-                    a.sum_nrm   += w * nrm;
-                    a.sum_outer += w * pos * pos.transpose();
-                    a.sum_w     += w;
+                    a.sum_pos  += w * pos;
+                    a.sum_nrm  += w * nrm;
+                    a.outer[0] += w * pos.x() * pos.x();
+                    a.outer[1] += w * pos.x() * pos.y();
+                    a.outer[2] += w * pos.x() * pos.z();
+                    a.outer[3] += w * pos.y() * pos.y();
+                    a.outer[4] += w * pos.y() * pos.z();
+                    a.outer[5] += w * pos.z() * pos.z();
+                    a.sum_w    += w;
                     a.count++;
                 }
             }
         } // end parallel
- 
+
         for (int t = 0; t < nthreads; ++t)
             for (size_t k = 0; k < N_seeds; ++k)
-                seed_accums_[k].merge(tlocal[t][k]);
+                seed_accums_[k].merge(tlocal_[t][k]);
     }
 }
 
@@ -376,7 +386,7 @@ std::vector<Surfel> SurfelExtractor::aggregate() const {
  
         // --- Measurement covariance R ---
         // C_pass2: scatter from pass-2 (tighter than pass-1, plane-weighted)
-        const Eigen::Matrix3f C_pass2 = a.sum_outer / a.sum_w - centroid * centroid.transpose();
+        const Eigen::Matrix3f C_pass2 = a.sum_outer_matrix() / a.sum_w - centroid * centroid.transpose();
  
         // Centroid estimation uncertainty: divide by count (sample covariance
         // of the mean), NOT by sum_w which conflates weights and sample count.

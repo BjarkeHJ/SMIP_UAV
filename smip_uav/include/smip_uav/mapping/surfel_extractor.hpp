@@ -62,21 +62,31 @@ private:
     struct SeedAccum {
         Eigen::Vector3f sum_pos{Eigen::Vector3f::Zero()};
         Eigen::Vector3f sum_nrm{Eigen::Vector3f::Zero()};
-        Eigen::Matrix3f sum_outer{Eigen::Matrix3f::Zero()};
+        // Upper-triangle of symmetric w*p*pᵀ sum: [00,01,02,11,12,22]
+        float outer[6]{};
         float sum_w{0.0f};
         uint32_t count{0};
 
         void reset() {
-            sum_pos.setZero(); sum_nrm.setZero(); sum_outer.setZero();
+            sum_pos.setZero(); sum_nrm.setZero();
+            for (auto& x : outer) x = 0.0f;
             sum_w = 0.0f; count = 0;
         }
 
         void merge(const SeedAccum& o) {
-            sum_pos += o.sum_pos; 
+            sum_pos += o.sum_pos;
             sum_nrm += o.sum_nrm;
-            sum_outer += o.sum_outer; 
+            for (int i = 0; i < 6; ++i) outer[i] += o.outer[i];
             sum_w += o.sum_w;
             count += o.count;
+        }
+
+        Eigen::Matrix3f sum_outer_matrix() const {
+            Eigen::Matrix3f m;
+            m << outer[0], outer[1], outer[2],
+                 outer[1], outer[3], outer[4],
+                 outer[2], outer[4], outer[5];
+            return m;
         }
     };
 
@@ -121,6 +131,7 @@ private:
     std::vector<Seed> seeds_;
     std::vector<SeedAccum> seed_accums_;
     std::vector<PlaneEstimate> planes_;
+    std::vector<std::vector<SeedAccum>> tlocal_;  // thread-local accumulators, reused each frame
     std::vector<int32_t> labels_;
     std::vector<float> distances_;
 
