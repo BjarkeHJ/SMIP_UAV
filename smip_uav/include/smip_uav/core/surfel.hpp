@@ -16,7 +16,7 @@ struct Surfel {
     float inlier_ratio{0.0f};
     uint32_t obs_count{0};
 
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 
 } // namespace smip_uav

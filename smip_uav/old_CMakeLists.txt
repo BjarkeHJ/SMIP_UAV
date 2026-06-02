@@ -20,9 +20,8 @@ endif()
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Exec names
+set(FRAME_EXEC smip_frame_node)
 set(MAP_EXEC smip_map_node)
-set(POSE_OPT_EXEC smip_pose_opt_node)
 set(TRAJ_EXEC smip_trajectory_node)
 
 find_package(ament_cmake REQUIRED)
@@ -30,7 +29,10 @@ find_package(rosidl_default_generators REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 
+find_package(tf2_ros REQUIRED)
 find_package(tf2_eigen REQUIRED)
+
+find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
@@ -38,8 +40,6 @@ find_package(visualization_msgs REQUIRED)
 
 find_package(ament_index_cpp REQUIRED)
 find_package(Eigen3 REQUIRED)
-find_package(nanoflann REQUIRED)
-
 find_package(yaml-cpp REQUIRED)
 find_package(OpenMP REQUIRED)
 
@@ -58,35 +58,64 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 )
 ament_export_dependencies(rosidl_default_runtime)
 
-# ----- ActiveMapNode -----
+# ----- Frame node -----
+set(
+    FRAMEDEPS
+    rclcpp
+    tf2_ros
+    tf2_eigen
+    sensor_msgs
+)
+add_executable(
+    ${FRAME_EXEC}
+    src/exec/frame_exec.cpp
+    src/ros_nodes/frame_node.cpp
+    src/surfel_map/frame_builder.cpp
+    src/surfel_map/frame_processor.cpp
+    src/surfel_map/frame_buffer.cpp
+)
+ament_target_dependencies(
+    ${FRAME_EXEC}
+    ${FRAMEDEPS}
+)
+target_link_libraries(
+    ${FRAME_EXEC}
+    Eigen3::Eigen
+    OpenMP::OpenMP_CXX
+)
+
+# ----- SurfelMap node -----
 set(
     MAPDEPS
     rclcpp
     tf2_ros
     tf2_eigen
     sensor_msgs
-    px4_msgs
+    geometry_msgs
+    nav_msgs
     visualization_msgs
+    px4_msgs
 )
 add_executable(
     ${MAP_EXEC}
-    src/exec/map_exec.cpp
-    src/ros_nodes/active_map_node.cpp
-    src/mapping/frame_processor.cpp
-    src/mapping/surfel_extractor.cpp
-    src/mapping/active_map.cpp
-    src/mapping/map_state_container.cpp
-    src/mapping/rollover_policy.cpp
+    src/exec/smip_exec.cpp
+    src/ros_nodes/map_node.cpp
+    src/ros_nodes/voxl_tf_node.cpp
+    src/surfel_map/frame_builder.cpp
+    src/surfel_map/frame_processor.cpp
+    src/surfel_map/frame_buffer.cpp
+    src/surfel_map/voxel_grid.cpp
+    src/surfel_map/surfel_map.cpp
+    src/surfel_map/surfel_map_localizer.cpp
 )
 ament_target_dependencies(
-    ${MAP_EXEC}
-    ${MAPDEPS}
+  ${MAP_EXEC}
+  ${MAPDEPS}
 )
 target_link_libraries(
     ${MAP_EXEC}
-    OpenMP::OpenMP_CXX
     Eigen3::Eigen
-    nanoflann::nanoflann
+    OpenMP::OpenMP_CXX
 )
 
 # TrajectoryNode: Action Server for waypoint trajectory interpolation
@@ -111,7 +140,7 @@ rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typ
 target_link_libraries(${TRAJ_EXEC} ${cpp_typesupport_target})
 
 install(
-  TARGETS ${MAP_EXEC} ${TRAJ_EXEC}
+  TARGETS ${FRAME_EXEC} ${MAP_EXEC} ${TRAJ_EXEC}
   DESTINATION lib/${PROJECT_NAME}
 )
 

@@ -1,5 +1,5 @@
 #ifndef SMIP_FROZEN_SUBMAP_HPP_
-#define SMIP_FRONZE_SUBMAP_HPP_
+#define SMIP_FROZEN_SUBMAP_HPP_
 
 #include <vector>
 #include <memory>
@@ -32,7 +32,7 @@ struct FrozenSubmap {
     Eigen::Isometry3f T_submap_world{Eigen::Isometry3f::Identity()}; // only writeable field during graph opt...
     Eigen::Isometry3f T_submap_world_origin{Eigen::Isometry3f::Identity()}; // set at freeze-time
 
-    std::vector<Surfel> surfels;
+    std::vector<Surfel> surfels; // Should i have both this AND the kdtree?
 
     Eigen::Vector3f centroid{Eigen::Vector3f::Zero()};
     float radius{0.0f};

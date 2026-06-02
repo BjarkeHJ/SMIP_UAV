@@ -17,10 +17,11 @@ class ActiveMap {
 public:
     struct Config {
         float voxel_size{0.5f};
-        float subvoxel_size{0.05f};
-        
+        float subvoxel_size{0.075f};
+
+        bool enable_fusion{false};
         float min_normal_dot{0.5f};
-        float max_point_to_plane_m{0.05f};
+        float max_point_to_plane_m{0.2f};
         float max_mahalanobis_sq{9.0f};
 
         uint32_t maturity_obs_count{3};
@@ -29,9 +30,11 @@ public:
         uint32_t min_bins_for_refit{8};
 
         float omega_regularization{1e-6f};
+
     };
 
-    ActiveMap(const Eigen::Isometry3f& T_origin_world, int64_t stamp_ns, const Config& cfg = Config{});
+    ActiveMap(const Eigen::Isometry3f& T_origin_world, int64_t stamp_ns);
+    ActiveMap(const Eigen::Isometry3f& T_origin_world, int64_t stamp_ns, const Config& cfg);
     ActiveMap(const ActiveMap&) = delete;
     ActiveMap& operator=(const ActiveMap&) = delete;
 
@@ -42,12 +45,23 @@ public:
     float accumulated_translation() const { return accumulated_translation_; }
     float accumulated_rotation() const { return accumulated_rotation_rad_; }
     size_t surfel_count() const { return total_surfel_count_; }
+    size_t bin_point_count() const { return total_bin_count_; }
 
     const Eigen::Isometry3f& T_origin_world() const { return T_origin_world_; }
     const Eigen::Isometry3f& T_latest_world() const { return T_latest_world_; }
+
+    // Iterate all accumulated bin points in submap-local frame.
+    // Fn: void(const PointBin&)
+    template<typename Fn>
+    void for_each_bin_point(Fn&& fn) const {
+        for (const auto& [key, voxel] : voxel_map_) {
+            for (const auto& [sk, bin] : voxel.point_bins) {
+                fn(bin.position, bin.normal, bin.weight, bin.count);
+            }
+        }
+    }
     
 private:
-
     struct VoxelKey {
         int32_t x, y, z;
         bool operator==(const VoxelKey& o) const {
@@ -69,14 +83,6 @@ private:
         }
     };
 
-    struct PointBin {
-        Eigen::Vector3f position{Eigen::Vector3f::Zero()};
-        Eigen::Vector3f normal{Eigen::Vector3f::Zero()};
-        float           weight{0.0f};
-        uint32_t        count{0};
-        EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    };
-
     struct SubKey {
         int16_t x, y, z;
         bool operator==(const SubKey& o) const {
@@ -92,6 +98,14 @@ private:
             h ^= static_cast<size_t>(static_cast<uint16_t>(k.z)); h *= 16777619u;
             return h;
         }
+    };
+
+    struct PointBin {
+        Eigen::Vector3f position{Eigen::Vector3f::Zero()};
+        Eigen::Vector3f normal{Eigen::Vector3f::Zero()};
+        float           weight{0.0f};
+        uint32_t        count{0};
+        EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     };
 
     using SubvoxelGrid = std::unordered_map<SubKey, PointBin, SubKeyHash>;
@@ -178,8 +192,9 @@ private:
  
     VoxelMap voxel_map_;
  
-    // Maintained for O(1) surfel_count() without iterating all voxels
+    // Maintained for O(1) surfel_count() / bin_point_count() without iterating all voxels
     size_t total_surfel_count_{0};
+    size_t total_bin_count_{0};
  
     // Rollover metrics
     uint32_t frame_count_{0};
