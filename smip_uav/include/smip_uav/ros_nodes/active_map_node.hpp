@@ -9,6 +9,7 @@
 #include <tf2_eigen/tf2_eigen.hpp>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/static_transform_broadcaster.h>
+#include <deque>
 #include <optional>
 #include <omp.h>
 
@@ -39,7 +40,7 @@ private:
     void pose_callback(px4_msgs::msg::VehicleOdometry::SharedPtr pose_msg);
 
     void convert_pointcloud_message(sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg, Frame& frame);
-    std::optional<StampedPose> get_current_pose(int64_t stamp_ns) const;
+    std::optional<StampedPose> get_current_pose(int64_t scan_stamp) const;
     void handle_rollover(const StampedPose& pose, const RolloverSignal& signal, int64_t stamp_ns);
 
     rclcpp::CallbackGroup::SharedPtr cb_group_;
@@ -51,7 +52,7 @@ private:
     void publish_frame(const Frame& frame) const;
     void publish_active_map_points(const ActiveMap& map, int64_t stamp_ns) const;
     void publish_submap_surfels(const size_t k_maps) const;
-    void publish_submap_surfel_ellipsoids(const size_t k_maps) const;
+    void publish_submap_surfel_ellipsoids(size_t k_maps, bool sliding_window = false) const;
     void publish_pose_graph() const;
     void add_axes(visualization_msgs::msg::MarkerArray& ma, const Eigen::Isometry3f& T, int64_t stamp, const std::string& ns, int& marker_id, float scale) const;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr frame_points_pub_;
@@ -71,8 +72,9 @@ private:
     // Shared state container
     std::shared_ptr<MapStateContainer> map_state_container_;
 
-    // Cached pose
-    std::optional<StampedPose> latest_pose_;
+    // Pose buffer for timestamp-matched lookup
+    std::deque<StampedPose> pose_buffer_;
+    static constexpr size_t POSE_BUFFER_SIZE = 75; // ~200ms at 250 Hz
 
     // Static extrinsic: sensor-in-body
     Eigen::Isometry3f T_body_sensor_{Eigen::Isometry3f::Identity()};
@@ -81,9 +83,8 @@ private:
     std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
     std::shared_ptr<tf2_ros::StaticTransformBroadcaster> static_tf_broadcaster_;
 
-    // Persistent marker id for ellipsoid markers — never re-uses old ids so
-    // per-submap markers accumulate in RViz without re-transmitting past submaps.
     mutable int next_ellipsoid_marker_id_{0};
+    // {first_id, count} for each submap currently visible in the sliding window.
 
     // PointCloud message offsets (cached)
     XYZOffsets xyz_off_;

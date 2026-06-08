@@ -1,4 +1,5 @@
 #include "ros_nodes/active_map_node.hpp"
+#include "ros_nodes/global_map_node.hpp"
 
 #include <memory>
 #include <pthread.h>
@@ -20,9 +21,11 @@ int main(int argc, char** argv) {
 
     auto container = std::make_shared<MapStateContainer>();
     auto active_map_node = std::make_shared<ActiveMapNode>(container);
+    auto global_map_node = std::make_shared<GlobalMapNode>(container);
 
     rclcpp::executors::MultiThreadedExecutor map_exec;
     map_exec.add_node(active_map_node);
+    map_exec.add_node(global_map_node);
     map_exec.spin();
 
     rclcpp::shutdown();

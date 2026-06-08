@@ -17,18 +17,16 @@ class ActiveMap {
 public:
     struct Config {
         float voxel_size{0.5f};
-        float subvoxel_size{0.075f};
+        float subvoxel_size{0.05f};
 
-        bool enable_fusion{false};
-        float min_normal_dot{0.5f};
-        float max_point_to_plane_m{0.2f};
+        float min_normal_dot{0.75f};
+        float max_point_to_plane_m{0.15f};
         float max_mahalanobis_sq{9.0f};
 
-        uint32_t maturity_obs_count{3};
-        uint32_t max_unobserved_frames{5};
+        uint32_t maturity_obs_count{10};
+        uint32_t max_unobserved_frames{8};
 
         uint32_t min_bins_for_refit{8};
-
         float omega_regularization{1e-6f};
 
     };
@@ -177,9 +175,6 @@ private:
     // Tick unobserved counters on all immature surfels; evict if exceeded.
     // Called at the start of each register_frame().
     void tick_unobserved();
-    // Freeze-time: refit surfel geometry from subvoxel point bins via PCA.
-    // Only runs on voxels with >= min_bins_for_refit occupied bins.
-    void refit_from_geometry();
     // Freeze-time: evict immature surfels from all voxels.
     void evict_immature();
 

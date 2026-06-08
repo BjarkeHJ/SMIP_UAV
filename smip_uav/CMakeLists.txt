@@ -72,6 +72,7 @@ add_executable(
     ${MAP_EXEC}
     src/exec/map_exec.cpp
     src/ros_nodes/active_map_node.cpp
+    src/ros_nodes/global_map_node.cpp
     src/mapping/frame_processor.cpp
     src/mapping/surfel_extractor.cpp
     src/mapping/active_map.cpp

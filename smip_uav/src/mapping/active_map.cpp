@@ -91,11 +91,6 @@ void ActiveMap::fuse_surfels(const Frame& frame, const Eigen::Isometry3f& T_loca
         const Surfel s_local = transform_to_local(s_sensor, T_local_sensor);
         const VoxelKey home = to_coarse_key(s_local.position);
 
-        if (!cfg_.enable_fusion) {
-            insert_surfel(home, voxel_map_[home], s_local);
-            continue;
-        }
-
         // Collect ActiveSurfels from 27-cell nbhood
         candidate_scratch_.clear();
         collect_candidates(home, candidate_scratch_);
@@ -110,8 +105,8 @@ void ActiveMap::fuse_surfels(const Frame& frame, const Eigen::Isometry3f& T_loca
             const float d2p = std::abs(as->estimate.normal.dot(s_local.position - as->estimate.position));
             if (d2p >= cfg_.max_point_to_plane_m) continue; // not in-plane
 
-            // const Eigen::Matrix3f C_gate = as->estimate.covariance + s_local.covariance + cfg_.omega_regularization * Eigen::Matrix3f::Identity();
-            const Eigen::Matrix3f C_gate = as->estimate.shape + s_local.shape + cfg_.omega_regularization * Eigen::Matrix3f::Identity();
+            const Eigen::Matrix3f C_gate = as->estimate.covariance + s_local.covariance + cfg_.omega_regularization * Eigen::Matrix3f::Identity();
+            // const Eigen::Matrix3f C_gate = as->estimate.shape + s_local.shape + cfg_.omega_regularization * Eigen::Matrix3f::Identity();
             const Eigen::Vector3f dp = s_local.position - as->estimate.position;
             const Eigen::LLT<Eigen::Matrix3f> llt(C_gate);
             if (llt.info() != Eigen::Success) continue;
@@ -241,89 +236,6 @@ void ActiveMap::tick_unobserved() {
     }
 }
 
-
-void ActiveMap::refit_from_geometry() {
-    for (auto& [key, voxel] : voxel_map_) {
-        if (voxel.point_bins.size() < cfg_.min_bins_for_refit) continue;
-        if (voxel.surfels.empty()) continue;
-
-        float W = 0.0f;
-        Eigen::Vector3f S1 = Eigen::Vector3f::Zero();
-        Eigen::Matrix3f S2 = Eigen::Matrix3f::Zero();
-        Eigen::Vector3f N_acc = Eigen::Vector3f::Zero();
-
-        for (const auto& [sk, bin] : voxel.point_bins) {
-            W += bin.weight;
-            S1 += bin.weight * bin.position;
-            S2 += bin.weight * bin.position * bin.position.transpose();
-            N_acc += bin.weight * bin.normal;
-        }
-
-        if (W < 1e-8f) continue;
-
-        const Eigen::Vector3f centroid = S1 / W;
-        const Eigen::Matrix3f scatter = S2 / W - centroid * centroid.transpose();
-
-        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(scatter);
-        if (eig.info() != Eigen::Success) continue;
-
-        const Eigen::Vector3f evals = eig.eigenvalues().cwiseMax(0.0f);
-        const Eigen::Matrix3f evecs = eig.eigenvectors();
-
-        // lambda0: thickness direction, lambd1,lambda2: tangent plane extents
-        if (evals(1) < 1e-8f) continue;
-        // Skip refit if geometry is not sufficiently planar
-        if (evals(0) > 0.1f * evals(1)) continue; 
-        
-        Eigen::Vector3f geom_normal = evecs.col(0);
-        const Eigen::Matrix3f shape = scatter - evals(0) * (geom_normal * geom_normal.transpose());
-
-        // Build covariance in the PCA eigenframe.
-        // In-plane directions: centroid uncertainty shrinks with more bins (random lateral noise).
-        // Normal direction: floored at sensor depth noise so we don't overclaim depth precision.
-        const float n_bins_f = static_cast<float>(voxel.point_bins.size());
-        constexpr float kDepthNoiseFloorSq = 0.005f * 0.005f; // 5 mm sigma floor
-        const float normal_var = std::max(evals(0) / n_bins_f, kDepthNoiseFloorSq);
-        const Eigen::Matrix3f cov_refit =
-            normal_var          * (evecs.col(0) * evecs.col(0).transpose()) +
-            (evals(1) / n_bins_f) * (evecs.col(1) * evecs.col(1).transpose()) +
-            (evals(2) / n_bins_f) * (evecs.col(2) * evecs.col(2).transpose());
-
-        if (voxel.surfels.size() == 1) {
-            ActiveSurfel& as = voxel.surfels[0];
-            if (geom_normal.dot(N_acc) < 0.0f) geom_normal = -geom_normal;
-            if (geom_normal.dot(centroid) > 0.0f) geom_normal = -geom_normal;
-
-            as.estimate.position = centroid;
-            as.estimate.normal = geom_normal;
-            as.estimate.shape = shape;
-            as.estimate.covariance = cov_refit;
-        }
-
-        else {
-            float best_dist = std::numeric_limits<float>::max();
-            ActiveSurfel* best_as = nullptr;
-            for (ActiveSurfel& as : voxel.surfels) {
-                const float d = (as.estimate.position - centroid).squaredNorm();
-                if (d < best_dist) {
-                    best_dist = d;
-                    best_as = &as;
-                }
-            }
-
-            if (!best_as) continue;
-
-            if (geom_normal.dot(N_acc) < 0.0f) geom_normal = -geom_normal;
-            if (geom_normal.dot(centroid) > 0.0f) geom_normal = -geom_normal;
-
-            best_as->estimate.position = centroid;
-            best_as->estimate.normal = geom_normal;
-            best_as->estimate.shape = shape;
-            best_as->estimate.covariance = cov_refit;
-        }
-    }
-}
-
 void ActiveMap::evict_immature() {
     for (auto& [key, voxel] : voxel_map_) {
         auto& sv = voxel.surfels;
@@ -341,12 +253,9 @@ void ActiveMap::evict_immature() {
     }
 }
 
-
 FrozenSubmap ActiveMap::freeze(int64_t stamp_ns_end) {
-    refit_from_geometry();
-
-    if (cfg_.enable_fusion) evict_immature();
-
+    evict_immature();
+    
     FrozenSubmap fs;
     fs.T_submap_world = T_origin_world_;
     fs.T_submap_world_origin = T_origin_world_;

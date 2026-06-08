@@ -125,7 +125,8 @@ void ActiveMapNode::pose_callback(px4_msgs::msg::VehicleOdometry::SharedPtr pose
     sp.T_world.pretranslate(frame_transform::TF_WORLD_NED_ENU(ned_pos));
     sp.stamp_ns  = static_cast<int64_t>(pose_msg->timestamp) * 1000LL;
     sp.cov       = Eigen::Matrix<float,6,6>::Zero();
-    latest_pose_ = sp;
+    pose_buffer_.push_back(sp);
+    if (pose_buffer_.size() > POSE_BUFFER_SIZE) pose_buffer_.pop_front();
 
     // Broadcast odom-base_link transform
     const Eigen::Vector3f    t = sp.T_world.translation();
@@ -198,7 +199,7 @@ void ActiveMapNode::handle_rollover(const StampedPose& pose, const RolloverSigna
 
     publish_pose_graph();
     publish_submap_surfels(SIZE_MAX);
-    publish_submap_surfel_ellipsoids(1);
+    publish_submap_surfel_ellipsoids(1, false);
 
     size_t n_surfels = 0;
     map_state_container_->read_submap(id, [&](const FrozenSubmap& fs) {
@@ -222,9 +223,19 @@ void ActiveMapNode::handle_rollover(const StampedPose& pose, const RolloverSigna
     active_map_ = std::make_unique<ActiveMap>(pose.T_world, stamp_ns);
 }
 
-std::optional<StampedPose> ActiveMapNode::get_current_pose(int64_t /*stamp_ns*/) const {
-    if (!latest_pose_.has_value()) return std::nullopt;
-    StampedPose sp = *latest_pose_;
+std::optional<StampedPose> ActiveMapNode::get_current_pose(int64_t scan_stamp) const {
+    
+    if (pose_buffer_.empty()) return std::nullopt;
+
+    auto best = std::min_element(pose_buffer_.begin(), pose_buffer_.end(),
+        [scan_stamp](const StampedPose& a, const StampedPose& b) {
+            return std::abs(a.stamp_ns - scan_stamp) < std::abs(b.stamp_ns - scan_stamp);
+        });
+    StampedPose sp = *best;
+
+    int64_t delta_t_ms = (scan_stamp - sp.stamp_ns) / 1'000'000;
+    RCLCPP_INFO(this->get_logger(), "SCAN-TO-ODOMETRY TIME DELTA: %ld ms", delta_t_ms);
+
     sp.T_world = sp.T_world * T_body_sensor_;  // tf from body to sensor frame
     return sp;
 }
@@ -443,32 +454,6 @@ void ActiveMapNode::publish_submap_surfels(const size_t k_maps) const {
     msg.row_step = msg.point_step * total;
     msg.data.resize(msg.row_step);
 
-    auto submap_color = [](uint32_t id) -> std::array<float, 3> {
-        // Golden ratio conjugate scramble — spreads hue evenly for any n
-        constexpr float kGoldenRatio = 0.6180339887f;
-        float h = std::fmod(id * kGoldenRatio, 1.0f);
-
-        // Fixed saturation/value for visibility; tweak to taste
-        constexpr float s = 0.75f;
-        constexpr float v = 0.90f;
-
-        // HSV → RGB inline
-        float c  = v * s;
-        float x  = c * (1.0f - std::fabs(std::fmod(h * 6.0f, 2.0f) - 1.0f));
-        float m  = v - c;
-        int   sector = static_cast<int>(h * 6.0f);
-        float r, g, b;
-        switch (sector % 6) {
-            case 0: r=c; g=x; b=0; break;
-            case 1: r=x; g=c; b=0; break;
-            case 2: r=0; g=c; b=x; break;
-            case 3: r=0; g=x; b=c; break;
-            case 4: r=x; g=0; b=c; break;
-            default: r=c; g=0; b=x; break;
-        }
-        return {r+m, g+m, b+m};
-    };
-
     auto make_rgb = [](float r,float g, float b) -> float {
         uint32_t u = (uint32_t(r*255.0f) << 16) | (uint32_t(g*255.0f) << 8) | uint32_t(b*255.0f);
         float f;
@@ -503,64 +488,78 @@ void ActiveMapNode::publish_submap_surfels(const size_t k_maps) const {
     submap_surfels_pub_->publish(msg);
 }
 
-void ActiveMapNode::publish_submap_surfel_ellipsoids(const size_t k_maps) const {
+void ActiveMapNode::publish_submap_surfel_ellipsoids(const size_t k_maps, bool sliding_window) const {
     const MapSnapshot snap = map_state_container_->snapshot();
     if (snap.views.empty()) return;
 
     const size_t start = snap.views.size() > k_maps ? snap.views.size() - k_maps : 0;
+    const rclcpp::Time stamp = rclcpp::Time(snap.views.back().stamp_ns_end);
 
     visualization_msgs::msg::MarkerArray ma;
 
-    const rclcpp::Time stamp = rclcpp::Time(snap.views.back().stamp_ns_end);
+    auto add_surfel_markers = [&](const FrozenSubmap& fs, int& id_counter) {
+        const Eigen::Matrix3f R_world = fs.T_submap_world.linear();
+        for (const Surfel& s : fs.surfels) {
+            Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(s.shape);
+            if (eig.info() != Eigen::Success) continue;
 
-    for (size_t i = start; i < snap.views.size(); ++i) {
-        const auto& view = snap.views[i];
-        map_state_container_->read_submap(view.id, [&](const FrozenSubmap& fs) {
-            const Eigen::Matrix3f R_world = fs.T_submap_world.linear();
+            const Eigen::Vector3f evals = eig.eigenvalues().cwiseMax(0.0f);
 
-            for (const Surfel& s : fs.surfels) {
-                Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(s.shape);
-                if (eig.info() != Eigen::Success) continue;
+            Eigen::Matrix3f evecs_world = R_world * eig.eigenvectors();
+            if (evecs_world.determinant() < 0.0f) evecs_world.col(0) = -evecs_world.col(0);
 
-                // Eigenvalues ascending: evals(0) is normal direction (~0), (1),(2) are tangent axes
-                const Eigen::Vector3f evals = eig.eigenvalues().cwiseMax(0.0f);
+            const Eigen::Quaternionf q(evecs_world);
+            const Eigen::Vector3f p = fs.T_submap_world * s.position;
+            const Eigen::Vector3f n_world = R_world * s.normal;
 
-                // Rotate eigenvectors to world frame; ensure proper rotation (det = +1)
-                Eigen::Matrix3f evecs_world = R_world * eig.eigenvectors();
-                if (evecs_world.determinant() < 0.0f) evecs_world.col(0) = -evecs_world.col(0);
+            visualization_msgs::msg::Marker m;
+            m.header.frame_id = "odom";
+            m.header.stamp = stamp;
+            m.ns = "surfel_ellipsoids";
+            m.id = id_counter++;
+            m.type = visualization_msgs::msg::Marker::SPHERE;
+            m.action = visualization_msgs::msg::Marker::ADD;
 
-                const Eigen::Quaternionf q(evecs_world);
-                const Eigen::Vector3f p = fs.T_submap_world * s.position;
-                const Eigen::Vector3f n_world = R_world * s.normal;
+            m.pose.position.x = p.x();
+            m.pose.position.y = p.y();
+            m.pose.position.z = p.z();
+            m.pose.orientation.w = q.w();
+            m.pose.orientation.x = q.x();
+            m.pose.orientation.y = q.y();
+            m.pose.orientation.z = q.z();
 
-                visualization_msgs::msg::Marker m;
-                m.header.frame_id = "odom";
-                m.header.stamp = stamp;
-                m.ns = "surfel_ellipsoids";
-                m.id = next_ellipsoid_marker_id_++;
-                m.type = visualization_msgs::msg::Marker::SPHERE;
-                m.action = visualization_msgs::msg::Marker::ADD;
+            constexpr float kMinThickness = 0.01f;
+            m.scale.x = std::max(2.0f * std::sqrt(evals(0)), kMinThickness);
+            m.scale.y = 2.0f * std::sqrt(evals(1));
+            m.scale.z = 2.0f * std::sqrt(evals(2));
 
-                m.pose.position.x = p.x();
-                m.pose.position.y = p.y();
-                m.pose.position.z = p.z();
-                m.pose.orientation.w = q.w();
-                m.pose.orientation.x = q.x();
-                m.pose.orientation.y = q.y();
-                m.pose.orientation.z = q.z();
+            m.color.r = (n_world.x() + 1.0f) * 0.5f;
+            m.color.g = (n_world.y() + 1.0f) * 0.5f;
+            m.color.b = (n_world.z() + 1.0f) * 0.5f;
+            m.color.a = 0.8f;
 
-                constexpr float kMinThickness = 0.01f;
-                m.scale.x = std::max(2.0f * std::sqrt(evals(0)), kMinThickness);
-                m.scale.y = 2.0f * std::sqrt(evals(1));
-                m.scale.z = 2.0f * std::sqrt(evals(2));
+            ma.markers.push_back(m);
+        }
+    };
 
-                m.color.r = (n_world.x() + 1.0f) * 0.5f;
-                m.color.g = (n_world.y() + 1.0f) * 0.5f;
-                m.color.b = (n_world.z() + 1.0f) * 0.5f;
-                m.color.a = 0.8f;
+    if (sliding_window) {
+        // DELETEALL then republish the k_maps most recent submaps with fresh ids.
+        // Message stays small since k_maps is typically small.
+        visualization_msgs::msg::Marker del;
+        del.action = visualization_msgs::msg::Marker::DELETEALL;
+        del.ns = "surfel_ellipsoids";
+        ma.markers.push_back(del);
 
-                ma.markers.push_back(m);
-            }
+        int local_id = 0;
+        for (size_t i = start; i < snap.views.size(); ++i) {
+            map_state_container_->read_submap(snap.views[i].id, [&](const FrozenSubmap& fs) {
+                add_surfel_markers(fs, local_id);
+            });
+        }
+    } else {
+        // Persistent mode: only publish the newest submap, accumulate in RViz.
+        map_state_container_->read_submap(snap.views.back().id, [&](const FrozenSubmap& fs) {
+            add_surfel_markers(fs, next_ellipsoid_marker_id_);
         });
     }
 
