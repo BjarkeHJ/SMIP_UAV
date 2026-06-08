@@ -24,14 +24,14 @@ struct RolloverSignal {
 class RolloverPolicy {
 public:
     struct Config {
-        float max_translation_m{2.0f};
+        float max_translation_m{5.0f};
         // float max_rotation_rad{1.05f}; // ~60 deg acc
         float max_rotation_rad{0.52f}; // ~30 deg acc
         uint32_t max_frames{50}; // should maybe depend on fps of sensor (10Hz -> 5 sec?)
 
         float overlap_margin_m{0.5f}; // Checking for FrozenSubmap overlap - expand boundign sphere by this margin...
 
-        float min_info_gain_rate{0.0f}; // future: saturation trgiger
+        float min_info_gain_rate{0.0f}; // future: saturation trigger
         float degeneracy_threshold{0.0f}; // future: from pose estimator
     };
 

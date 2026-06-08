@@ -233,9 +233,6 @@ std::optional<StampedPose> ActiveMapNode::get_current_pose(int64_t scan_stamp) c
         });
     StampedPose sp = *best;
 
-    int64_t delta_t_ms = (scan_stamp - sp.stamp_ns) / 1'000'000;
-    RCLCPP_INFO(this->get_logger(), "SCAN-TO-ODOMETRY TIME DELTA: %ld ms", delta_t_ms);
-
     sp.T_world = sp.T_world * T_body_sensor_;  // tf from body to sensor frame
     return sp;
 }

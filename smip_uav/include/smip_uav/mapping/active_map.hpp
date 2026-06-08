@@ -19,8 +19,8 @@ public:
         float voxel_size{0.5f};
         float subvoxel_size{0.05f};
 
-        float min_normal_dot{0.75f};
-        float max_point_to_plane_m{0.15f};
+        float min_normal_dot{0.85f};
+        float max_point_to_plane_m{0.05f};
         float max_mahalanobis_sq{9.0f};
 
         uint32_t maturity_obs_count{10};
@@ -177,6 +177,7 @@ private:
     void tick_unobserved();
     // Freeze-time: evict immature surfels from all voxels.
     void evict_immature();
+    void smooth_surfels();
 
     // State
     Config cfg_;

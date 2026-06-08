@@ -253,8 +253,91 @@ void ActiveMap::evict_immature() {
     }
 }
 
+void ActiveMap::smooth_surfels() {
+    // One pass of tangent-plane-constrained Laplacian smoothing.
+    // For each surfel, compute weighted mean of spatial neighbours,
+    // then move only the tangent-plane component of the displacement.
+    //
+    // Neighbour search: same 27-cell voxel neighbourhood used for correspondence.
+    // Weight: inverse squared distance, confidence-weighted.
+    // Constraint: displacement projected onto tangent plane only —
+    //             normal direction is untouched.
+
+    const float search_radius_sq =
+        cfg_.voxel_size * cfg_.voxel_size;  // neighbours within one voxel cell
+
+    // Collect smoothed positions first, apply after (Jacobi-style, not Gauss-Seidel)
+    // so smoothing is order-independent.
+    struct SmoothedResult {
+        Eigen::Vector3f new_position;
+        bool updated{false};
+    };
+
+    // Flat list of all active surfels with their voxel keys for fast iteration
+    std::vector<std::pair<VoxelKey, ActiveSurfel*>> all_surfels;
+    all_surfels.reserve(total_surfel_count_);
+    for (auto& [key, voxel] : voxel_map_)
+        for (auto& as : voxel.surfels)
+            all_surfels.push_back({key, &as});
+
+    std::vector<Eigen::Vector3f> new_positions(all_surfels.size());
+
+    for (size_t i = 0; i < all_surfels.size(); ++i) {
+        const auto& [home_key, as] = all_surfels[i];
+        const Surfel& s = as->estimate;
+
+        // Collect neighbours from 27-cell search
+        candidate_scratch_.clear();
+        collect_candidates(home_key, candidate_scratch_);
+
+        Eigen::Vector3f weighted_pos = Eigen::Vector3f::Zero();
+        float total_weight = 0.0f;
+
+        for (const ActiveSurfel* nb : candidate_scratch_) {
+            if (nb == as) continue;  // skip self
+
+            const Eigen::Vector3f dp = nb->estimate.position - s.position;
+            const float dist_sq = dp.squaredNorm();
+            if (dist_sq > search_radius_sq || dist_sq < 1e-8f) continue;
+
+            // Normal compatibility: only smooth with surfels on the same surface
+            if (nb->estimate.normal.dot(s.normal) < cfg_.min_normal_dot) continue;
+
+            const float w = nb->estimate.confidence / (dist_sq + 1e-6f);
+            weighted_pos += w * nb->estimate.position;
+            total_weight += w;
+        }
+
+        if (total_weight < 1e-8f) {
+            new_positions[i] = s.position;  // no neighbours — keep as-is
+            continue;
+        }
+
+        const Eigen::Vector3f mean_pos = weighted_pos / total_weight;
+        const Eigen::Vector3f delta    = mean_pos - s.position;
+
+        // Project delta onto tangent plane — remove normal component
+        const Eigen::Vector3f delta_tangent =
+            delta - delta.dot(s.normal) * s.normal;
+
+        // Damping: don't move more than half the search radius
+        const float max_move = 0.5f * cfg_.voxel_size;
+        const float move_len = delta_tangent.norm();
+        const Eigen::Vector3f clamped_delta = (move_len > max_move)
+            ? delta_tangent * (max_move / move_len)
+            : delta_tangent;
+
+        new_positions[i] = s.position + clamped_delta;
+    }
+
+    // Apply smoothed positions
+    for (size_t i = 0; i < all_surfels.size(); ++i)
+        all_surfels[i].second->estimate.position = new_positions[i];
+}
+
 FrozenSubmap ActiveMap::freeze(int64_t stamp_ns_end) {
     evict_immature();
+    smooth_surfels();
     
     FrozenSubmap fs;
     fs.T_submap_world = T_origin_world_;
