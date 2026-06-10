@@ -17,18 +17,17 @@ class ActiveMap {
 public:
     struct Config {
         float voxel_size{0.5f};
-        float subvoxel_size{0.05f};
+        float subvoxel_size{0.025f};
 
-        float min_normal_dot{0.85f};
+        float min_normal_dot{0.9f};
         float max_point_to_plane_m{0.05f};
         float max_mahalanobis_sq{9.0f};
 
-        uint32_t maturity_obs_count{10};
-        uint32_t max_unobserved_frames{8};
+        uint32_t maturity_obs_count{1};
+        uint32_t max_unobserved_frames{100};
 
         uint32_t min_bins_for_refit{8};
         float omega_regularization{1e-6f};
-
     };
 
     ActiveMap(const Eigen::Isometry3f& T_origin_world, int64_t stamp_ns);
@@ -101,8 +100,9 @@ private:
     struct PointBin {
         Eigen::Vector3f position{Eigen::Vector3f::Zero()};
         Eigen::Vector3f normal{Eigen::Vector3f::Zero()};
-        float           weight{0.0f};
-        uint32_t        count{0};
+        float weight{0.0f};
+        float M2{0.0f}; // weigth-scatter about the mean
+        uint32_t count{0};
         EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     };
 
@@ -121,6 +121,7 @@ private:
     struct SurfelMeta {
         uint32_t unobserved_frames{0};
         bool     mature{false};
+        bool     culled{false};
     };
 
     struct ActiveSurfel {
@@ -159,6 +160,11 @@ private:
     // HELPERS - per-frame passes
     // Pass 1: insert valid pixels into subvoxel grids
     void insert_pixels(const Frame& frame, const Eigen::Isometry3f& T_local_sensor);
+    void fit_surfels();
+    void fit_voxel_surfels(Voxel& voxel);
+
+
+
     // Pass 2: fuse frame surfels into active surfels
     void fuse_surfels(const Frame& frame, const Eigen::Isometry3f& T_local_sensor);
     // Collect all candidate ActiveSurfel pointers from 27-cell neighbourhood
@@ -177,7 +183,7 @@ private:
     void tick_unobserved();
     // Freeze-time: evict immature surfels from all voxels.
     void evict_immature();
-    void smooth_surfels();
+    void thin_surfels();   // greedy confidence-sorted NMS; called at freeze
 
     // State
     Config cfg_;

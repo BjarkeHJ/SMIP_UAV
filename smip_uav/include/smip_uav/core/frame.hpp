@@ -6,6 +6,7 @@
 #include <limits>
 #include <Eigen/Geometry>
 
+#include "core/types.hpp"
 #include "core/surfel.hpp"
 
 namespace smip_uav {
@@ -26,8 +27,9 @@ struct FrameMetadata {
     uint64_t frame_id;
     uint32_t width{0};
     uint32_t height{0};
-    Eigen::Isometry3f T_sensor_world;
-    int64_t stamp;
+    StampedPose pose;
+    // Eigen::Isometry3f T_sensor_world;
+    // int64_t stamp;
 };
 
 struct Frame {
@@ -37,11 +39,10 @@ struct Frame {
     std::vector<Surfel> surfels;
 
     Frame() = default;
-    Frame(const uint32_t width, const uint32_t height, const Eigen::Isometry3f& T_sensor_world, int64_t stamp) {
+    Frame(const uint32_t width, const uint32_t height, const StampedPose& pose) {
         meta.width = width;
         meta.height = height;
-        meta.T_sensor_world = T_sensor_world;
-        meta.stamp = stamp;
+        meta.pose = pose;
         const size_t n = static_cast<size_t>(width) * height;
         pixels.pointnormals.resize(n);
         pixels.weights.resize(n, 0.0f);

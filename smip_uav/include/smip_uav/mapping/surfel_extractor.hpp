@@ -16,11 +16,11 @@ public:
         // Adaptive seed spacing: seeds are placed so each surfel covers ~r_target metres in 3D.
         // S(z) = r_target / (pixel_pitch * z), clamped to [S_min, S_max].
         float  r_target{0.3f};
-        size_t S_min{8};
+        size_t S_min{4};
         size_t S_max{20};
-
+        
         size_t perturb_window{1};
-        size_t min_px{10};
+        size_t min_px{4};
 
         float w_spatial{1.0f};
         float w_normal{1.0f};

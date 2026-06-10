@@ -78,6 +78,7 @@ add_executable(
     src/mapping/active_map.cpp
     src/mapping/map_state_container.cpp
     src/mapping/rollover_policy.cpp
+    src/mapping/pose_graph.cpp
 )
 ament_target_dependencies(
     ${MAP_EXEC}

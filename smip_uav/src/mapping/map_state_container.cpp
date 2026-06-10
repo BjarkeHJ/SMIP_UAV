@@ -5,15 +5,21 @@
 namespace smip_uav {
 
 SubmapId MapStateContainer::commit_submap(FrozenSubmap&& submap) {
+    // Move to heap and rebuild the KD-tree before taking the lock.
+    // The move invalidates SurfelCloud::pts (it's a const& to the source surfels),
+    // so we must rebuild so that the reference points to the heap copy's surfels.
+    auto fs = std::make_unique<FrozenSubmap>(std::move(submap));
+    fs->build_kdtree();
+
     std::unique_lock lock(mutex_);
 
     const SubmapId id = next_id_++;
-    submap.id = id;
+    fs->id = id;
 
     assert(id_to_index_.size() == id);
     id_to_index_.push_back(frozen_submaps_.size());
 
-    frozen_submaps_.push_back(std::make_unique<FrozenSubmap>(std::move(submap)));
+    frozen_submaps_.push_back(std::move(fs));
 
     return id;
 }

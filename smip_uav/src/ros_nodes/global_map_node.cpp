@@ -1,4 +1,11 @@
 #include "ros_nodes/global_map_node.hpp"
+#include <geometry_msgs/msg/point.hpp>
+
+#include <cmath>
+#include <unordered_map>
+#include <Eigen/Eigenvalues>
+
+#include "core/surfel.hpp"
 
 namespace smip_uav {
 
@@ -17,6 +24,5 @@ GlobalMapNode::GlobalMapNode(std::shared_ptr<MapStateContainer> container) : Nod
 void GlobalMapNode::opt_cycle() {
     return;
 }
-
 
 } // namespace smip_uav

@@ -85,7 +85,8 @@ ActiveMapNode::ActiveMapNode(std::shared_ptr<MapStateContainer> container) : Nod
     // Publish static body-tof
     T_body_sensor_.setIdentity();
     T_body_sensor_.rotate(Eigen::Quaternionf(0.70711f, 0.0f, 0.70711f, 0.0f));
-    T_body_sensor_.pretranslate(Eigen::Vector3f(0.066f, -0.009f, 0.012f));
+    // T_body_sensor_.pretranslate(Eigen::Vector3f(0.066f, -0.009f, 0.012f));
+    T_body_sensor_.pretranslate(Eigen::Vector3f(0.056f, -0.009f, 0.012f));
 
     auto stf = tf2::eigenToTransform(T_body_sensor_.cast<double>());
     stf.header.stamp    = this->get_clock()->now();
@@ -162,7 +163,8 @@ void ActiveMapNode::pointcloud_callback(sensor_msgs::msg::PointCloud2::SharedPtr
     const StampedPose& pose = *pose_opt;
 
     // Construct and process Frame
-    std::unique_ptr<Frame> frame = std::make_unique<Frame>(240, 180, pose.T_world, t_ns); // should just be the StampedPose?
+    // std::unique_ptr<Frame> frame = std::make_unique<Frame>(240, 180, pose.T_world, t_ns); // should just be the StampedPose?
+    std::unique_ptr<Frame> frame = std::make_unique<Frame>(240, 180, pose);
     convert_pointcloud_message(cloud_msg, *frame);
     frame_processor_->process(*frame);
     surfel_extractor_->extract(*frame);
@@ -190,7 +192,7 @@ void ActiveMapNode::pointcloud_callback(sensor_msgs::msg::PointCloud2::SharedPtr
     publish_active_map_points(*active_map_, t_ns);
 
     double t = sw_.toc();
-    RCLCPP_INFO(this->get_logger(), "Surfels in Frame: %zu. Computation Time: %f.3 ms", frame->surfels.size(), t);
+    // RCLCPP_INFO(this->get_logger(), "Surfels in Frame: %zu. Computation Time: %f.3 ms", frame->surfels.size(), t);
 }
 
 void ActiveMapNode::handle_rollover(const StampedPose& pose, const RolloverSignal& signal, int64_t stamp_ns) {
@@ -198,7 +200,6 @@ void ActiveMapNode::handle_rollover(const StampedPose& pose, const RolloverSigna
     const SubmapId id = map_state_container_->commit_submap(std::move(frozen));
 
     publish_pose_graph();
-    publish_submap_surfels(SIZE_MAX);
     publish_submap_surfel_ellipsoids(1, false);
 
     size_t n_surfels = 0;
@@ -269,7 +270,7 @@ void ActiveMapNode::publish_frame_points(const Frame& frame) const {
     const std::vector<PointNormal>& pts = frame.pixels.pointnormals;
     const std::vector<uint8_t>& valid = frame.pixels.validities;
     sensor_msgs::msg::PointCloud2 msg;
-    msg.header.stamp = rclcpp::Time(frame.meta.stamp);
+    msg.header.stamp = rclcpp::Time(frame.meta.pose.stamp_ns);
     msg.header.frame_id = "sensor_frame";
     msg.height = 1;
     msg.width = static_cast<uint32_t>(pts.size());
@@ -302,7 +303,7 @@ void ActiveMapNode::publish_frame_points(const Frame& frame) const {
     for (size_t i = 0; i < pts.size(); ++i) {
         const Eigen::Vector3f& p = pts[i].p;
         const Eigen::Vector3f& n = pts[i].n;
-        const Eigen::Vector3f& n_w = frame.meta.T_sensor_world.rotation().transpose() * n;
+        const Eigen::Vector3f& n_w = frame.meta.pose.T_world.rotation().transpose() * n;
         float x = p.x();
         float y = p.y();
         float z = p.z();
@@ -326,7 +327,7 @@ void ActiveMapNode::publish_frame_points(const Frame& frame) const {
 void ActiveMapNode::publish_frame(const Frame& frame) const {
     const auto& surfels = frame.surfels;
     sensor_msgs::msg::PointCloud2 s_cloud;
-    s_cloud.header.stamp = rclcpp::Time(frame.meta.stamp);
+    s_cloud.header.stamp = rclcpp::Time(frame.meta.pose.stamp_ns);
     s_cloud.header.frame_id = "sensor_frame";
     s_cloud.height = 1;
     s_cloud.width = static_cast<uint32_t>(surfels.size());
@@ -402,15 +403,32 @@ void ActiveMapNode::publish_active_map_points(const ActiveMap& map, int64_t stam
         const float g = 1.0f - std::abs(2.0f * t - 1.0f);
         const float b = 1.0f - t;
         uint32_t u = (uint32_t(r * 255.0f) << 16) | (uint32_t(g * 255.0f) << 8) | uint32_t(b * 255.0f);
-        float f; std::memcpy(&f, &u, 4); return f;
+        float f; 
+        std::memcpy(&f, &u, 4); 
+        return f;
+    };
+
+    auto normal_to_rgb = [](const Eigen::Vector3f& n) -> float {
+        const float r = n.x() * 0.5f + 0.5f;
+        const float g = n.y() * 0.5f + 0.5f;
+        const float b = n.z() * 0.5f + 0.5f;
+        uint32_t u = (uint32_t(r * 255.0f) << 16 | (uint32_t(g * 255.0f) << 8) | uint32_t(b * 255.0f));
+        float f;
+        std::memcpy(&f, &u, 4);
+        return f; 
     };
 
     const Eigen::Isometry3f& T = map.T_origin_world();
     uint8_t* ptr = msg.data.data();
     map.for_each_bin_point([&](const Eigen::Vector3f& p, const Eigen::Vector3f& n, const float w, const uint32_t c) {
+        if (w < 0.5f) {
+            ptr += 16;
+            return;
+        }
         const Eigen::Vector3f pw = T * p;
         float x = pw.x(), y = pw.y(), z = pw.z();
-        float rgb = weight_to_rgb(w, c);
+        // float rgb = weight_to_rgb(w, c);
+        float rgb = normal_to_rgb(n);
         std::memcpy(ptr +  0, &x,   4);
         std::memcpy(ptr +  4, &y,   4);
         std::memcpy(ptr +  8, &z,   4);
