@@ -98,19 +98,6 @@ void ActiveMap::insert_pixels(const Frame& frame, const Eigen::Isometry3f& T_loc
     }
 }
 
-void ActiveMap::fit_surfels() {
-
-    // parallelize coarse voxels
-    for (auto& [key, voxel] : voxel_map_) {
-        
-    }
-
-    // after parallel -> check boundaries??
-}
-
-
-
-
 void ActiveMap::fuse_surfels(const Frame& frame, const Eigen::Isometry3f& T_local_sensor) {
     for (const Surfel& s_sensor : frame.surfels) {
         const Surfel s_local = transform_to_local(s_sensor, T_local_sensor);
@@ -121,23 +108,23 @@ void ActiveMap::fuse_surfels(const Frame& frame, const Eigen::Isometry3f& T_loca
         collect_candidates(home, candidate_scratch_);
 
         ActiveSurfel* best = nullptr;
-        float best_d2p = cfg_.max_point_to_plane_m;
+        float best_mahal = cfg_.max_mahalanobis_sq;
 
         for (ActiveSurfel* as : candidate_scratch_) {
-            const float ndot = as->estimate.normal.dot(s_local.normal);
-            if (ndot < cfg_.min_normal_dot) continue; // Not normal aligned
+            if (as->estimate.normal.dot(s_local.normal) < cfg_.min_normal_dot) continue;
 
-            const float d2p = std::abs(as->estimate.normal.dot(s_local.position - as->estimate.position));
-            if (d2p >= cfg_.max_point_to_plane_m) continue; // not in-plane
-
-            const Eigen::Matrix3f C_gate = as->estimate.covariance + s_local.covariance + cfg_.omega_regularization * Eigen::Matrix3f::Identity();
             const Eigen::Vector3f dp = s_local.position - as->estimate.position;
+            // Fast pre-filter: point-to-plane distance along the fused normal
+            if (std::abs(as->estimate.normal.dot(dp)) >= cfg_.max_point_to_plane_m) continue;
+
+            const Eigen::Matrix3f C_gate = as->estimate.covariance + s_local.covariance
+                                         + cfg_.omega_regularization * Eigen::Matrix3f::Identity();
             const Eigen::LLT<Eigen::Matrix3f> llt(C_gate);
             if (llt.info() != Eigen::Success) continue;
-            if (dp.dot(llt.solve(dp)) > cfg_.max_mahalanobis_sq) continue;
-            
-            if (d2p < best_d2p) {
-                best_d2p = d2p;
+
+            const float mahal_sq = dp.dot(llt.solve(dp));
+            if (mahal_sq < best_mahal) {
+                best_mahal = mahal_sq;
                 best = as;
             }
         }
@@ -177,14 +164,24 @@ bool ActiveMap::fuse_into(ActiveSurfel& as, const Surfel& s_local) {
     FusionState& fs = as.fusion;
 
     const Eigen::Matrix3f R_reg = s_local.covariance + cfg_.omega_regularization * Eigen::Matrix3f::Identity();
-    const Eigen::Matrix3f R_inv = R_reg.inverse();
+    const Eigen::LLT<Eigen::Matrix3f> llt_R(R_reg);
+    const Eigen::Matrix3f R_inv = llt_R.solve(Eigen::Matrix3f::Identity());
 
     fs.Omega += R_inv;
     fs.xi += R_inv * s_local.position;
     fs.normal_acc += s_local.confidence * s_local.normal;
     fs.normal_weight += s_local.confidence;
-    fs.shape_acc += s_local.confidence * s_local.shape;
-    fs.shape_weight += s_local.confidence;
+
+    // Parallel-axis merge: combines the incoming shape with the accumulated shape,
+    // adding the between-mean offset term so extent grows as viewpoints diverge.
+    const float w_a = fs.shape_weight;
+    const float w_b = s_local.confidence;
+    const float w_tot = w_a + w_b;
+    const Eigen::Vector3f d_mu = fs.shape_mu - s_local.position;
+    fs.shape_acc = (w_a * fs.shape_acc + w_b * s_local.shape
+                  + (w_a * w_b / w_tot) * d_mu * d_mu.transpose()) / w_tot;
+    fs.shape_mu  = (w_a * fs.shape_mu + w_b * s_local.position) / w_tot;
+    fs.shape_weight = w_tot;
 
     recompute_estimate(as);
     as.estimate.obs_count++;
@@ -199,7 +196,8 @@ void ActiveMap::insert_surfel(const VoxelKey&, Voxel& voxel, const Surfel& s_loc
     as.fusion.xi = as.fusion.Omega * s_local.position;
     as.fusion.normal_acc = s_local.confidence * s_local.normal;
     as.fusion.normal_weight = s_local.confidence;
-    as.fusion.shape_acc = s_local.confidence * s_local.shape;
+    as.fusion.shape_acc    = s_local.shape;
+    as.fusion.shape_mu     = s_local.position;
     as.fusion.shape_weight = s_local.confidence;
 
     voxel.surfels.push_back(std::move(as));
@@ -225,12 +223,19 @@ void ActiveMap::recompute_estimate(ActiveSurfel& as) {
         }
     }
 
-    if (fs.shape_weight > 1e-8f) {
-        s.shape = fs.shape_acc / fs.shape_weight;
+}
+
+void ActiveMap::finalize_estimate(ActiveSurfel& as) {
+    Surfel& s = as.estimate;
+
+    if (as.fusion.shape_weight > 1e-8f) {
+        s.shape = as.fusion.shape_acc;
     }
 
-    const float tr = s.covariance.trace();
-    s.confidence = (1.0f - std::exp(-static_cast<float>(s.obs_count) * 0.5f)) * std::exp(-tr * 10.0f);
+    const float sigma_n_sq  = s.normal.dot(s.covariance * s.normal);
+    const float sigma_ref_sq = cfg_.max_point_to_plane_m * cfg_.max_point_to_plane_m;
+    s.confidence = (1.0f - std::exp(-static_cast<float>(s.obs_count) * 0.5f))
+                 * std::exp(-sigma_n_sq / sigma_ref_sq);
 }
 
 void ActiveMap::tick_unobserved() {
@@ -274,89 +279,10 @@ void ActiveMap::evict_immature() {
     }
 }
 
-void ActiveMap::thin_surfels() {
-    // Greedy confidence-sorted NMS: keep the best surfel at each location,
-    // cull weaker neighbours whose coverage disks overlap this one.
-    //
-    // Coverage radius per surfel is derived from its shape matrix:
-    //   (trace(S) - n'Sn) / 2  =  mean of the two tangent-plane eigenvalues
-    // sqrt of that is the RMS tangent sigma; two surfels' disks overlap when
-    // their centre distance < r_a + r_b.  A floor of voxel_size*0.1 guards
-    // against surfels whose shape hasn't converged yet.
-    const float min_r = cfg_.voxel_size * 0.1f;
-    auto surfel_r = [&](const Surfel& s) -> float {
-        const float tangent_var =
-            (s.shape.trace() - s.normal.dot(s.shape * s.normal)) * 0.5f;
-        return std::sqrt(std::max(tangent_var, min_r * min_r));
-    };
-
-    // Build flat index sorted by confidence descending
-    std::vector<std::pair<VoxelKey, size_t>> order;
-    order.reserve(total_surfel_count_);
-    for (auto& [key, voxel] : voxel_map_)
-        for (size_t i = 0; i < voxel.surfels.size(); ++i)
-            order.push_back({key, i});
-
-    std::sort(order.begin(), order.end(), [&](const auto& a, const auto& b) {
-        return voxel_map_.at(a.first).surfels[a.second].estimate.confidence
-             > voxel_map_.at(b.first).surfels[b.second].estimate.confidence;
-    });
-
-    for (auto& [key, idx] : order) {
-        ActiveSurfel& as = voxel_map_.at(key).surfels[idx];
-        if (as.meta.culled) continue;
-
-        const float r_keep = surfel_r(as.estimate);
-
-        candidate_scratch_.clear();
-        collect_candidates(key, candidate_scratch_);
-
-        for (ActiveSurfel* nb : candidate_scratch_) {
-            if (nb == &as || nb->meta.culled) continue;
-            if (nb->estimate.confidence >= as.estimate.confidence) continue;
-            
-            if (as.estimate.normal.dot(nb->estimate.normal) < cfg_.min_normal_dot) continue;
-            const float d2p = std::abs(as.estimate.normal.dot(nb->estimate.position - as.estimate.position));
-            if (d2p > cfg_.max_point_to_plane_m) continue;
-
-            const Eigen::Vector3f dp = nb->estimate.position - as.estimate.position;
-            const Eigen::Vector3f dp_tangent = dp - dp.dot(as.estimate.normal) * as.estimate.normal;
-
-            const float cull_dist = r_keep + surfel_r(nb->estimate);
-            if (dp_tangent.squaredNorm() < cull_dist * cull_dist) {
-                // nb->meta.culled = true;
-                const float w_a = as.estimate.confidence;
-                const float w_b = nb->estimate.confidence;
-                const float w_inv = 1.f / (w_a + w_b);
-                as.estimate.shape    = (w_a * as.estimate.shape + w_b * nb->estimate.shape) * w_inv;
-                as.estimate.position = (w_a * as.estimate.position + w_b * nb->estimate.position) * w_inv;
-                as.estimate.normal   = (w_a * as.estimate.normal + w_b * nb->estimate.normal).normalized();
-                as.estimate.obs_count += nb->estimate.obs_count;
-                nb->meta.culled = true;
-            }
-        }
-    }
-
-    // Sweep out culled surfels
-    for (auto& [key, voxel] : voxel_map_) {
-        auto& sv = voxel.surfels;
-        size_t i = 0;
-        while (i < sv.size()) {
-            if (sv[i].meta.culled) {
-                sv[i] = std::move(sv.back());
-                sv.pop_back();
-                --total_surfel_count_;
-            } else {
-                ++i;
-            }
-        }
-    }
-}
-
 FrozenSubmap ActiveMap::freeze(int64_t stamp_ns_end) {
     evict_immature();
-    thin_surfels();
-    
+    // thin_surfels();
+
     FrozenSubmap fs;
     fs.T_submap_world = T_origin_world_;
     fs.T_submap_world_origin = T_origin_world_;
@@ -366,8 +292,9 @@ FrozenSubmap ActiveMap::freeze(int64_t stamp_ns_end) {
     fs.accumulated_translation = accumulated_translation_;
 
     fs.surfels.reserve(total_surfel_count_);
-    for (const auto& [key, voxel] : voxel_map_) {
-        for (const ActiveSurfel& as : voxel.surfels) {
+    for (auto& [key, voxel] : voxel_map_) {
+        for (ActiveSurfel& as : voxel.surfels) {
+            finalize_estimate(as);
             fs.surfels.push_back(as.estimate);
         }
     }

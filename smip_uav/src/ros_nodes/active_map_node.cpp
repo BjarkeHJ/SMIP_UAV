@@ -85,8 +85,7 @@ ActiveMapNode::ActiveMapNode(std::shared_ptr<MapStateContainer> container) : Nod
     // Publish static body-tof
     T_body_sensor_.setIdentity();
     T_body_sensor_.rotate(Eigen::Quaternionf(0.70711f, 0.0f, 0.70711f, 0.0f));
-    // T_body_sensor_.pretranslate(Eigen::Vector3f(0.066f, -0.009f, 0.012f));
-    T_body_sensor_.pretranslate(Eigen::Vector3f(0.056f, -0.009f, 0.012f));
+    T_body_sensor_.pretranslate(Eigen::Vector3f(0.066f, -0.009f, 0.012f));
 
     auto stf = tf2::eigenToTransform(T_body_sensor_.cast<double>());
     stf.header.stamp    = this->get_clock()->now();
@@ -192,26 +191,29 @@ void ActiveMapNode::pointcloud_callback(sensor_msgs::msg::PointCloud2::SharedPtr
     publish_active_map_points(*active_map_, t_ns);
 
     double t = sw_.toc();
-    // RCLCPP_INFO(this->get_logger(), "Surfels in Frame: %zu. Computation Time: %f.3 ms", frame->surfels.size(), t);
+    RCLCPP_INFO(this->get_logger(), "Surfels in Frame: %zu. Computation Time: %f.3 ms", frame->surfels.size(), t);
 }
 
 void ActiveMapNode::handle_rollover(const StampedPose& pose, const RolloverSignal& signal, int64_t stamp_ns) {
+    sw_.tic();
     FrozenSubmap frozen = active_map_->freeze(stamp_ns);
+    double t_freeze = sw_.toc();
     const SubmapId id = map_state_container_->commit_submap(std::move(frozen));
 
     publish_pose_graph();
-    publish_submap_surfel_ellipsoids(1, false);
+    publish_submap_surfel_ellipsoids(1, true);
 
     size_t n_surfels = 0;
     map_state_container_->read_submap(id, [&](const FrozenSubmap& fs) {
         n_surfels = fs.surfels.size();
     });
     RCLCPP_INFO(this->get_logger(),
-        "Committed submap %u (%zu surfels, %.1f m, %u frames)",
+        "Committed submap %u (%zu surfels, %.1f m, %u frames) -- Freeze Time: %f.3 ms",
         id,
         n_surfels,
         active_map_->accumulated_translation(),
-        active_map_->frame_count()
+        active_map_->frame_count(),
+        t_freeze
     );
 
     if (signal.action == RolloverAction::LOOP_CLOSURE_HINT) {

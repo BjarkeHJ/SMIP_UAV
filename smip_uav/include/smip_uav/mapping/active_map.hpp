@@ -19,15 +19,15 @@ public:
         float voxel_size{0.5f};
         float subvoxel_size{0.025f};
 
-        float min_normal_dot{0.9f};
+        float min_normal_dot{0.8f};
         float max_point_to_plane_m{0.05f};
         float max_mahalanobis_sq{9.0f};
 
-        uint32_t maturity_obs_count{1};
+        uint32_t maturity_obs_count{5};
         uint32_t max_unobserved_frames{100};
 
         uint32_t min_bins_for_refit{8};
-        float omega_regularization{1e-6f};
+        float omega_regularization{1e-3f};
     };
 
     ActiveMap(const Eigen::Isometry3f& T_origin_world, int64_t stamp_ns);
@@ -113,7 +113,10 @@ private:
         Eigen::Vector3f xi{Eigen::Vector3f::Zero()};    // sum R_i^{-1} * mu_i
         Eigen::Vector3f normal_acc{Eigen::Vector3f::Zero()};
         float           normal_weight{0.0f};
-        Eigen::Matrix3f shape_acc{Eigen::Matrix3f::Zero()};
+        // Accumulated shape: merged via parallel-axis formula so the extent grows
+        // as the surface is observed from different positions.
+        Eigen::Matrix3f shape_acc{Eigen::Matrix3f::Zero()}; // current merged covariance
+        Eigen::Vector3f shape_mu{Eigen::Vector3f::Zero()};  // weighted mean of observation positions
         float           shape_weight{0.0f};
         EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     };
@@ -160,11 +163,6 @@ private:
     // HELPERS - per-frame passes
     // Pass 1: insert valid pixels into subvoxel grids
     void insert_pixels(const Frame& frame, const Eigen::Isometry3f& T_local_sensor);
-    void fit_surfels();
-    void fit_voxel_surfels(Voxel& voxel);
-
-
-
     // Pass 2: fuse frame surfels into active surfels
     void fuse_surfels(const Frame& frame, const Eigen::Isometry3f& T_local_sensor);
     // Collect all candidate ActiveSurfel pointers from 27-cell neighbourhood
@@ -174,8 +172,10 @@ private:
     bool fuse_into(ActiveSurfel& ms, const Surfel& s_local);
     // Insert s_local as a new ActiveSurfel in voxel at home key
     void insert_surfel(const VoxelKey& home, Voxel& voxel,const Surfel& s_local);
-    // Recompute Surfel estimate from FusionState after an update
+    // Recompute position/covariance/normal from FusionState — called after every fusion.
     void recompute_estimate(ActiveSurfel& ms);
+    // Compute shape and confidence — deferred to freeze, not needed for gating.
+    void finalize_estimate(ActiveSurfel& ms);
 
     // HELPERS - lifecycle
     // Tick unobserved counters on all immature surfels; evict if exceeded.
@@ -183,7 +183,6 @@ private:
     void tick_unobserved();
     // Freeze-time: evict immature surfels from all voxels.
     void evict_immature();
-    void thin_surfels();   // greedy confidence-sorted NMS; called at freeze
 
     // State
     Config cfg_;
