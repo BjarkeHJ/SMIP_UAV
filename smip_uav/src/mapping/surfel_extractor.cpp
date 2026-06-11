@@ -410,18 +410,19 @@ std::vector<Surfel> SurfelExtractor::aggregate() const {
  
         // --- Confidence: combines inlier quality with measurement precision ---
         const float tr_R = R.trace();
-        const float confidence = inlier_ratio * std::exp(-tr_R / cfg_.confidence_sigma_ref_sq);
- 
-   
+        const float cos_theta    = std::abs(normal.dot(centroid.normalized()));
+        const float tr_R_sensor  = sigma_r_sq + 2.0f * sigma_tan_sq;
+        const float point_quality = tr_R_sensor / tr_R;
+        // const float confidence   = (cos_theta * cos_theta) * inlier_ratio * point_quality;
+        const float confidence   = cos_theta * inlier_ratio * point_quality;
+
         // --- Fill surfel ---
         Surfel& s = slots[k];
         s.position = centroid;
         s.normal = normal;
         s.covariance = R;
         s.shape = pl.shape_cov;   // full 3×3 tangent-plane extent
-        s.inlier_ratio = inlier_ratio;
         s.confidence = confidence;
-        s.obs_count = a.count;
  
         filled[k] = 1;
     }

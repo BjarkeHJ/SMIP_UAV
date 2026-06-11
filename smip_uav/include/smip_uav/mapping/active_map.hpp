@@ -22,10 +22,11 @@ public:
         float max_point_to_plane_m{0.05f};
         float max_mahalanobis_sq{9.0f};
 
-        uint32_t maturity_obs_count{5};
+        uint32_t maturity_fuse_count{5};
         uint32_t max_unobserved_frames{100};
 
         float omega_regularization{1e-3f};
+        float confidence_weight_ref{5.0f};
     };
 
     ActiveMap(const Eigen::Isometry3f& T_origin_world, int64_t stamp_ns);
@@ -71,11 +72,10 @@ private:
         Eigen::Vector3f xi{Eigen::Vector3f::Zero()};    // sum R_i^{-1} * mu_i
         Eigen::Vector3f normal_acc{Eigen::Vector3f::Zero()};
         float           normal_weight{0.0f};
-        // Accumulated shape: merged via parallel-axis formula so the extent grows
-        // as the surface is observed from different positions.
         Eigen::Matrix3f shape_acc{Eigen::Matrix3f::Zero()}; // current merged covariance
         Eigen::Vector3f shape_mu{Eigen::Vector3f::Zero()};  // weighted mean of observation positions
         float           shape_weight{0.0f};
+        uint32_t        fuse_count{0};
         EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     };
 

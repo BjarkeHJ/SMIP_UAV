@@ -359,7 +359,7 @@ void ActiveMapNode::publish_frame(const Frame& frame) const {
         float x = s.position.x();
         float y = s.position.y();
         float z = s.position.z();
-        float rgb = make_rgb(n.x(), n.y(), n.z());
+        float rgb = make_rgb(1.0f - s.confidence, s.confidence, 0.0f);
         std::memcpy(ptr + 0, &x, 4);
         std::memcpy(ptr + 4, &y, 4);
         std::memcpy(ptr + 8, &z, 4);
@@ -443,6 +443,10 @@ void ActiveMapNode::publish_submap_surfel_ellipsoids(const size_t k_maps, bool s
 
     visualization_msgs::msg::MarkerArray ma;
 
+    auto make_conf_rgb = [](float c) -> float {
+        return std::clamp(c, 0.0f, 1.0f);
+    };
+
     auto add_surfel_markers = [&](const FrozenSubmap& fs, int& id_counter) {
         const Eigen::Matrix3f R_world = fs.T_submap_world.linear();
         for (const Surfel& s : fs.surfels) {
@@ -479,9 +483,10 @@ void ActiveMapNode::publish_submap_surfel_ellipsoids(const size_t k_maps, bool s
             m.scale.y = 2.0f * std::sqrt(evals(1));
             m.scale.z = 2.0f * std::sqrt(evals(2));
 
-            m.color.r = (n_world.x() + 1.0f) * 0.5f;
-            m.color.g = (n_world.y() + 1.0f) * 0.5f;
-            m.color.b = (n_world.z() + 1.0f) * 0.5f;
+            const float conf = make_conf_rgb(s.confidence);
+            m.color.r = 1.0f - conf;
+            m.color.g = conf;
+            m.color.b = 0.0f;
             m.color.a = 0.8f;
 
             ma.markers.push_back(m);

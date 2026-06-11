@@ -46,6 +46,7 @@ void ActiveMap::register_frame(const Frame& frame, const StampedPose& stamped_po
 
 void ActiveMap::fuse_surfels(const Frame& frame, const Eigen::Isometry3f& T_local_sensor) {
     for (const Surfel& s_sensor : frame.surfels) {
+
         const Surfel s_local = transform_to_local(s_sensor, T_local_sensor);
         const VoxelKey home = to_coarse_key(s_local.position);
 
@@ -79,7 +80,7 @@ void ActiveMap::fuse_surfels(const Frame& frame, const Eigen::Isometry3f& T_loca
             // Found suitable match
             fuse_into(*best, s_local);
             best->meta.unobserved_frames = 0;
-            if (best->estimate.obs_count >= cfg_.maturity_obs_count) {
+            if (best->fusion.fuse_count >= cfg_.maturity_fuse_count) {
                 best->meta.mature = true;
             }
         }
@@ -130,7 +131,7 @@ bool ActiveMap::fuse_into(ActiveSurfel& as, const Surfel& s_local) {
     fs.shape_weight = w_tot;
 
     recompute_estimate(as);
-    as.estimate.obs_count++;
+    as.fusion.fuse_count++;
     return true;
 }
 
@@ -178,10 +179,7 @@ void ActiveMap::finalize_estimate(ActiveSurfel& as) {
         s.shape = as.fusion.shape_acc;
     }
 
-    const float sigma_n_sq  = s.normal.dot(s.covariance * s.normal);
-    const float sigma_ref_sq = cfg_.max_point_to_plane_m * cfg_.max_point_to_plane_m;
-    s.confidence = (1.0f - std::exp(-static_cast<float>(s.obs_count) * 0.5f))
-                 * std::exp(-sigma_n_sq / sigma_ref_sq);
+    s.confidence = 1.0f - std::exp(-as.fusion.shape_weight / cfg_.confidence_weight_ref);
 }
 
 void ActiveMap::tick_unobserved() {
@@ -227,7 +225,6 @@ void ActiveMap::evict_immature() {
 
 FrozenSubmap ActiveMap::freeze(int64_t stamp_ns_end) {
     evict_immature();
-    // thin_surfels();
 
     FrozenSubmap fs;
     fs.T_submap_world = T_origin_world_;
@@ -270,7 +267,6 @@ Surfel ActiveMap::transform_to_local(const Surfel& s, const Eigen::Isometry3f& T
     out.shape = R * s.shape * R.transpose();
     return out;
 }
-
 
 } // namespace smip_uav
 

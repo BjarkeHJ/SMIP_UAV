@@ -30,7 +30,6 @@ public:
 
         float tof_alpha{0.005f};
         float planarity_sigma_mult{3.0f};
-        float confidence_sigma_ref_sq{1e-4f};
     };
 
     SurfelExtractor() : SurfelExtractor(Config{}) {}

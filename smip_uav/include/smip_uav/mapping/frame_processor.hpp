@@ -19,7 +19,7 @@ public:
         size_t tof_res_y{180}; // fov 86 deg
         SensorRotation sensor_rotation{SensorRotation::DEG_0};
         float min_range{0.3f};
-        float max_range{5.0f};
+        float max_range{4.0f};
         float pixel_pitch{0.01071f}; //Radians per pixel -> DIRECTLY FROM SENSOR SPECS: 0.5(tan(hfov/2)/(resx/2) + tan(vfox/2)/resy/2)
         int ds_factor{1};
     };
