@@ -6,10 +6,10 @@ from launch.substitutions import LaunchConfiguration
 DATA_LOG_DIR = '/data_log'
 
 TOPICS = [
-    '/tf',
+    '/fmu/out/vehicle_odometry',
     '/tf_static',
-    '/smip/map_surfel',
-    '/smip/drone_path',
+    # '/smip/map_surfel',
+    # '/smip/drone_path',
 ]
 
 def generate_launch_description():
