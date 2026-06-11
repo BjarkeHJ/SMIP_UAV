@@ -65,10 +65,6 @@ ActiveMapNode::ActiveMapNode(std::shared_ptr<MapStateContainer> container) : Nod
         "/smip_uav/frame_surfel_cloud",
         rclcpp::SensorDataQoS()
     );
-    active_points_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
-        "/smip_uav/active_map_points",
-        rclcpp::SensorDataQoS()
-    );
     submap_surfels_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
         "/smip_uav/frozen",
         10
@@ -188,7 +184,6 @@ void ActiveMapNode::pointcloud_callback(sensor_msgs::msg::PointCloud2::SharedPtr
 
     publish_frame_points(*frame);
     publish_frame(*frame);
-    publish_active_map_points(*active_map_, t_ns);
 
     double t = sw_.toc();
     RCLCPP_INFO(this->get_logger(), "Surfels in Frame: %zu. Computation Time: %f.3 ms", frame->surfels.size(), t);
@@ -373,72 +368,6 @@ void ActiveMapNode::publish_frame(const Frame& frame) const {
     }
 
     frame_surfels_pub_->publish(s_cloud);
-}
-
-void ActiveMapNode::publish_active_map_points(const ActiveMap& map, int64_t stamp_ns) const {
-    const size_t n = map.bin_point_count();
-    if (n == 0) return;
-
-    sensor_msgs::msg::PointCloud2 msg;
-    msg.header.frame_id = "odom";
-    msg.header.stamp = rclcpp::Time(stamp_ns);
-    msg.height = 1;
-    msg.width = static_cast<uint32_t>(n);
-    msg.is_dense = false;
-    msg.is_bigendian = false;
-
-    sensor_msgs::msg::PointField fx, fy, fz, frgb;
-    fx.name = "x"; fx.offset =  0; fx.datatype = sensor_msgs::msg::PointField::FLOAT32; fx.count = 1;
-    fy.name = "y"; fy.offset =  4; fy.datatype = sensor_msgs::msg::PointField::FLOAT32; fy.count = 1;
-    fz.name = "z"; fz.offset =  8; fz.datatype = sensor_msgs::msg::PointField::FLOAT32; fz.count = 1;
-    frgb.name = "rgb"; frgb.offset = 12; frgb.datatype = sensor_msgs::msg::PointField::FLOAT32; frgb.count = 1;
-    msg.fields = {fx, fy, fz, frgb};
-    msg.point_step = 16;
-    msg.row_step = msg.point_step * msg.width;
-    msg.data.resize(msg.row_step);
-
-    // Blue → green → red heat ramp on effective weight (w/count), saturating at 20
-    auto weight_to_rgb = [](float w, uint32_t c) -> float {
-        const float eff = c > 0 ? w / static_cast<float>(c) : 0.0f;
-        const float t = std::min(eff, 1.0f);
-        const float r = t;
-        const float g = 1.0f - std::abs(2.0f * t - 1.0f);
-        const float b = 1.0f - t;
-        uint32_t u = (uint32_t(r * 255.0f) << 16) | (uint32_t(g * 255.0f) << 8) | uint32_t(b * 255.0f);
-        float f; 
-        std::memcpy(&f, &u, 4); 
-        return f;
-    };
-
-    auto normal_to_rgb = [](const Eigen::Vector3f& n) -> float {
-        const float r = n.x() * 0.5f + 0.5f;
-        const float g = n.y() * 0.5f + 0.5f;
-        const float b = n.z() * 0.5f + 0.5f;
-        uint32_t u = (uint32_t(r * 255.0f) << 16 | (uint32_t(g * 255.0f) << 8) | uint32_t(b * 255.0f));
-        float f;
-        std::memcpy(&f, &u, 4);
-        return f; 
-    };
-
-    const Eigen::Isometry3f& T = map.T_origin_world();
-    uint8_t* ptr = msg.data.data();
-    map.for_each_bin_point([&](const Eigen::Vector3f& p, const Eigen::Vector3f& n, const float w, const uint32_t c) {
-        if (w < 0.5f) {
-            ptr += 16;
-            return;
-        }
-        const Eigen::Vector3f pw = T * p;
-        float x = pw.x(), y = pw.y(), z = pw.z();
-        // float rgb = weight_to_rgb(w, c);
-        float rgb = normal_to_rgb(n);
-        std::memcpy(ptr +  0, &x,   4);
-        std::memcpy(ptr +  4, &y,   4);
-        std::memcpy(ptr +  8, &z,   4);
-        std::memcpy(ptr + 12, &rgb, 4);
-        ptr += 16;
-    });
-
-    active_points_pub_->publish(msg);
 }
 
 void ActiveMapNode::publish_submap_surfels(const size_t k_maps) const {

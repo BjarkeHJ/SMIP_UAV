@@ -40,62 +40,8 @@ void ActiveMap::register_frame(const Frame& frame, const StampedPose& stamped_po
     // Compute transform: sensor frame -> submap-local frame
     const Eigen::Isometry3f T_local_sensor = T_origin_world_inv_ * frame.meta.pose.T_world;
 
-    // Insert valid pixels into subvoxel point grids
-    insert_pixels(frame, T_local_sensor);
-
     // Fuse frame surfels into active map surfels
     fuse_surfels(frame, T_local_sensor);
-}
-
-void ActiveMap::insert_pixels(const Frame& frame, const Eigen::Isometry3f& T_local_sensor) {
-    const Eigen::Matrix3f R_local = T_local_sensor.rotation(); 
-    const Eigen::Vector3f sensor_pos = T_local_sensor.translation();
-    const size_t N = frame.pixels.pointnormals.size();
-
-    VoxelKey last_ck{INT32_MAX, INT32_MAX, INT32_MAX};
-    Voxel* voxel = nullptr;
-
-    for (size_t i = 0; i < N; ++i) {
-        if (!frame.pixels.validities[i]) continue;
-        const float w = frame.pixels.weights[i];
-        if (w < 1e-6f) continue;
-
-        const Eigen::Vector3f p_local = T_local_sensor * frame.pixels.pointnormals[i].p;
-        Eigen::Vector3f n_local = R_local * frame.pixels.pointnormals[i].n;
-
-        if (n_local.dot(sensor_pos - p_local) < 0.0f) n_local = -n_local; // should not happen...
-
-        const VoxelKey& ck = to_coarse_key(p_local);
-        if (!(ck == last_ck) || voxel == nullptr) {
-            voxel = &voxel_map_[ck];
-            last_ck = ck;
-            if (!voxel->origin_set) {
-                voxel->origin = Eigen::Vector3f(
-                    static_cast<float>(ck.x)*cfg_.voxel_size,
-                    static_cast<float>(ck.y)*cfg_.voxel_size,
-                    static_cast<float>(ck.z)*cfg_.voxel_size    
-                );
-                voxel->origin_set = true;
-            }
-        }
-
-        // Compute subvoxel key relative to voxel origin
-        const SubKey sk = to_sub_key(p_local, voxel->origin);
-        PointBin& bin = voxel->point_bins[sk];
-        
-        if (bin.count == 0) ++total_bin_count_;
-
-        // weighted welford update: mean position + scalar scatter M2
-        const float w_total = bin.weight + w;
-        Eigen::Vector3f delta = p_local - bin.position; // vs old position
-        bin.position += (w / w_total) * delta;
-        bin.M2 += w * delta.dot(p_local - bin.position); // uses new mean
-
-        // normal weighted mean of vectors
-        bin.normal += (w / w_total) * (n_local - bin.normal);
-        bin.weight = w_total;
-        bin.count++;
-    }
 }
 
 void ActiveMap::fuse_surfels(const Frame& frame, const Eigen::Isometry3f& T_local_sensor) {
@@ -312,16 +258,6 @@ ActiveMap::VoxelKey ActiveMap::to_coarse_key(const Eigen::Vector3f& p) const {
         static_cast<int32_t>(std::floor(p.x() * inv)),
         static_cast<int32_t>(std::floor(p.y() * inv)),
         static_cast<int32_t>(std::floor(p.z() * inv))
-    };
-}
-
-ActiveMap::SubKey ActiveMap::to_sub_key(const Eigen::Vector3f& p_local, const Eigen::Vector3f& voxel_origin) const {
-    const Eigen::Vector3f rel = p_local - voxel_origin;
-    const float inv = 1.0f / cfg_.subvoxel_size;
-    return {
-        static_cast<int16_t>(std::floor(rel.x() * inv)),
-        static_cast<int16_t>(std::floor(rel.y() * inv)),
-        static_cast<int16_t>(std::floor(rel.z() * inv))
     };
 }
 

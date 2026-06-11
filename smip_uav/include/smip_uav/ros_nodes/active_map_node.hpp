@@ -50,14 +50,12 @@ private:
     // Visualization
     void publish_frame_points(const Frame& frame) const;
     void publish_frame(const Frame& frame) const;
-    void publish_active_map_points(const ActiveMap& map, int64_t stamp_ns) const;
     void publish_submap_surfels(const size_t k_maps) const;
     void publish_submap_surfel_ellipsoids(size_t k_maps, bool sliding_window = false) const;
     void publish_pose_graph() const;
     void add_axes(visualization_msgs::msg::MarkerArray& ma, const Eigen::Isometry3f& T, int64_t stamp, const std::string& ns, int& marker_id, float scale) const;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr frame_points_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr frame_surfels_pub_;
-    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr active_points_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr submap_surfels_pub_;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr surfel_ellipsoids_pub_;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pose_graph_pub_;
