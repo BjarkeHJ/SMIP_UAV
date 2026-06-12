@@ -8,6 +8,7 @@ DATA_LOG_DIR = '/data_log'
 TOPICS = [
     '/fmu/out/vehicle_odometry',
     '/tof_pc',
+    '/imu_apps',
     # '/tf',
     # '/tf_static',
     # '/smip/drone_path',
