@@ -196,7 +196,7 @@ void ActiveMapNode::handle_rollover(const StampedPose& pose, const RolloverSigna
     const SubmapId id = map_state_container_->commit_submap(std::move(frozen));
 
     publish_pose_graph();
-    publish_submap_surfel_ellipsoids(1, true);
+    publish_submap_surfel_ellipsoids(1, false);
 
     size_t n_surfels = 0;
     map_state_container_->read_submap(id, [&](const FrozenSubmap& fs) {
