@@ -30,6 +30,7 @@ find_package(rosidl_default_generators REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 
+find_package(tf2_ros REQUIRED)
 find_package(tf2_eigen REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
@@ -78,7 +79,7 @@ add_executable(
     src/mapping/active_map.cpp
     src/mapping/map_state_container.cpp
     src/mapping/rollover_policy.cpp
-    src/mapping/pose_graph.cpp
+    src/mapping/bundle_adjustment.cpp
 )
 ament_target_dependencies(
     ${MAP_EXEC}

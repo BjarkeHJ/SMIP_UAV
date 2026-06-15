@@ -125,10 +125,12 @@ void ActiveMapNode::pose_callback(px4_msgs::msg::VehicleOdometry::SharedPtr pose
     if (pose_buffer_.size() > POSE_BUFFER_SIZE) pose_buffer_.pop_front();
 
     // Broadcast odom-base_link transform
+    // TF must use the ROS/bag clock (use_sim_time aligns this with bag playback).
+    // sp.stamp_ns is the PX4 boot-epoch clock and cannot be mixed into the TF chain.
     const Eigen::Vector3f    t = sp.T_world.translation();
     const Eigen::Quaternionf q(sp.T_world.rotation());
     geometry_msgs::msg::TransformStamped tf_msg;
-    tf_msg.header.stamp            = rclcpp::Time(sp.stamp_ns);
+    tf_msg.header.stamp            = this->get_clock()->now();
     tf_msg.header.frame_id         = "odom";
     tf_msg.child_frame_id          = "base_link";
     tf_msg.transform.translation.x = t.x();
