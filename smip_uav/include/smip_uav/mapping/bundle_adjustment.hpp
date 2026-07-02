@@ -16,7 +16,7 @@ class BundleAdjustment {
 public:
     struct Config {
         // Association
-        float assoc_voxel_size{0.8f};
+        float assoc_voxel_size{1.0f};
         float min_nromal_dot{0.90f};
         float max_plane_offset_m{0.10f};
 

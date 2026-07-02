@@ -11,8 +11,7 @@ namespace smip_uav {
 
 GlobalMapNode::GlobalMapNode(std::shared_ptr<MapStateContainer> container) : Node("global_map_node"), map_state_container_(container) {
     ba_ = std::make_unique<BundleAdjustment>();
-    tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
-    
+
     cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
     timer_ = this->create_wall_timer(
@@ -29,7 +28,9 @@ GlobalMapNode::GlobalMapNode(std::shared_ptr<MapStateContainer> container) : Nod
 }
 
 void GlobalMapNode::opt_cycle() {
-    publish_map_odom_tf();
+    // Hand off the latest map<-odom correction to the front-end, which broadcasts it
+    // stamped with the IMU clock (single source of timing truth for the tf tree).
+    map_state_container_->write_map_odom(T_map_odom_);
 
     const MapSnapshot snap = map_state_container_->snapshot();
     if (snap.total_submaps < 2) return;
@@ -77,31 +78,12 @@ void GlobalMapNode::opt_cycle() {
     publish_surfel_markers();
 }
 
-void GlobalMapNode::publish_map_odom_tf() {
-    geometry_msgs::msg::TransformStamped ts;
-    ts.header.stamp = this->get_clock()->now();
-    ts.header.frame_id = map_frame_;
-    ts.child_frame_id = odom_frame_;
-
-    const Eigen::Vector3f t = T_map_odom_.translation();
-    const Eigen::Quaternionf q(T_map_odom_.rotation());
-    ts.transform.translation.x = static_cast<double>(t.x());
-    ts.transform.translation.y = static_cast<double>(t.y());
-    ts.transform.translation.z = static_cast<double>(t.z());
-    ts.transform.rotation.w = static_cast<double>(q.w());
-    ts.transform.rotation.x = static_cast<double>(q.x());
-    ts.transform.rotation.y = static_cast<double>(q.y());
-    ts.transform.rotation.z = static_cast<double>(q.z());
-
-    tf_broadcaster_->sendTransform(ts);
-}
-
 void GlobalMapNode::publish_pose_graph() {
     const MapSnapshot snap = map_state_container_->snapshot();
     if (snap.views.empty()) return;
 
     visualization_msgs::msg::MarkerArray ma;
-    const auto stamp = this->get_clock()->now();
+    const rclcpp::Time stamp(snap.views.back().stamp_ns_end);
 
     visualization_msgs::msg::Marker nodes;
     nodes.header.frame_id = map_frame_;
@@ -154,7 +136,7 @@ void GlobalMapNode::publish_surfel_points() {
 
     sensor_msgs::msg::PointCloud2 msg;
     msg.header.frame_id = map_frame_;
-    msg.header.stamp = this->now();
+    msg.header.stamp = rclcpp::Time(snap.views.back().stamp_ns_end);
     msg.height = 1;
     msg.width = total;
     msg.is_dense = false;
@@ -241,7 +223,7 @@ void GlobalMapNode::publish_surfel_markers() {
     const MapSnapshot snap = map_state_container_->snapshot();
     if (snap.views.empty()) return;
 
-    const rclcpp::Time stamp = this->get_clock()->now();
+    const rclcpp::Time stamp(snap.views.back().stamp_ns_end);
     visualization_msgs::msg::MarkerArray ma;
 
     visualization_msgs::msg::Marker del;

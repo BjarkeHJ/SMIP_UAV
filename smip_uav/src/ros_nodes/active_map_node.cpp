@@ -39,7 +39,8 @@ ActiveMapNode::ActiveMapNode(std::shared_ptr<MapStateContainer> container) : Nod
 
     // RO2 Sub/Pub
     cloud_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-        "tof_pc",
+        // "tof_pc",
+        "/x500/tof/points_raw",
         rclcpp::SensorDataQoS(),
         std::bind(&ActiveMapNode::pointcloud_callback, this, std::placeholders::_1),
         sub_opt
@@ -80,13 +81,16 @@ ActiveMapNode::ActiveMapNode(std::shared_ptr<MapStateContainer> container) : Nod
 
     // Publish static body-tof
     T_body_sensor_.setIdentity();
-    T_body_sensor_.rotate(Eigen::Quaternionf(0.70711f, 0.0f, 0.70711f, 0.0f));
-    T_body_sensor_.pretranslate(Eigen::Vector3f(0.066f, -0.009f, 0.012f));
+    // T_body_sensor_.rotate(Eigen::Quaternionf(0.70711f, 0.0f, 0.70711f, 0.0f));
+    // T_body_sensor_.pretranslate(Eigen::Vector3f(0.066f, -0.009f, 0.012f));
+    T_body_sensor_.rotate(Eigen::Quaternionf(Eigen::AngleAxisf(M_PI_2, Eigen::Vector3f::UnitX())));
+    T_body_sensor_.pretranslate(Eigen::Vector3f(0.3f, 0.0f, 0.01f));
+
 
     auto stf = tf2::eigenToTransform(T_body_sensor_.cast<double>());
     stf.header.stamp    = this->get_clock()->now();
     stf.header.frame_id = "base_link";
-    stf.child_frame_id  = "sensor_frame";
+    stf.child_frame_id  = "tof_frame";
     static_tf_broadcaster_->sendTransform(stf);
 
     RCLCPP_INFO(this->get_logger(), "ActiveMapNode ready!");
@@ -125,12 +129,11 @@ void ActiveMapNode::pose_callback(px4_msgs::msg::VehicleOdometry::SharedPtr pose
     if (pose_buffer_.size() > POSE_BUFFER_SIZE) pose_buffer_.pop_front();
 
     // Broadcast odom-base_link transform
-    // TF must use the ROS/bag clock (use_sim_time aligns this with bag playback).
-    // sp.stamp_ns is the PX4 boot-epoch clock and cannot be mixed into the TF chain.
+    const rclcpp::Time stamp(sp.stamp_ns);
     const Eigen::Vector3f    t = sp.T_world.translation();
     const Eigen::Quaternionf q(sp.T_world.rotation());
     geometry_msgs::msg::TransformStamped tf_msg;
-    tf_msg.header.stamp            = this->get_clock()->now();
+    tf_msg.header.stamp            = stamp;
     tf_msg.header.frame_id         = "odom";
     tf_msg.child_frame_id          = "base_link";
     tf_msg.transform.translation.x = t.x();
@@ -141,6 +144,23 @@ void ActiveMapNode::pose_callback(px4_msgs::msg::VehicleOdometry::SharedPtr pose
     tf_msg.transform.rotation.y    = q.y();
     tf_msg.transform.rotation.z    = q.z();
     tf_broadcaster_->sendTransform(tf_msg);
+
+    // Broadcast map<-odom using the back-end's latest correction
+    const Eigen::Isometry3f T_map_odom = map_state_container_->read_map_odom();
+    geometry_msgs::msg::TransformStamped map_odom_msg;
+    map_odom_msg.header.stamp = stamp;
+    map_odom_msg.header.frame_id = "map";
+    map_odom_msg.child_frame_id = "odom";
+    const Eigen::Vector3f mt = T_map_odom.translation();
+    const Eigen::Quaternionf mq(T_map_odom.rotation());
+    map_odom_msg.transform.translation.x = mt.x();
+    map_odom_msg.transform.translation.y = mt.y();
+    map_odom_msg.transform.translation.z = mt.z();
+    map_odom_msg.transform.rotation.w = mq.w();
+    map_odom_msg.transform.rotation.x = mq.x();
+    map_odom_msg.transform.rotation.y = mq.y();
+    map_odom_msg.transform.rotation.z = mq.z();
+    tf_broadcaster_->sendTransform(map_odom_msg);
 }
 
 void ActiveMapNode::pointcloud_callback(sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg) {
@@ -157,7 +177,7 @@ void ActiveMapNode::pointcloud_callback(sensor_msgs::msg::PointCloud2::SharedPtr
         );
         return;
     }
-    const StampedPose& pose = *pose_opt;
+    const StampedPose pose = *pose_opt;
 
     // Construct and process Frame
     // std::unique_ptr<Frame> frame = std::make_unique<Frame>(240, 180, pose.T_world, t_ns); // should just be the StampedPose?
@@ -270,7 +290,7 @@ void ActiveMapNode::publish_frame_points(const Frame& frame) const {
     const std::vector<uint8_t>& valid = frame.pixels.validities;
     sensor_msgs::msg::PointCloud2 msg;
     msg.header.stamp = rclcpp::Time(frame.meta.pose.stamp_ns);
-    msg.header.frame_id = "sensor_frame";
+    msg.header.frame_id = "tof_frame";
     msg.height = 1;
     msg.width = static_cast<uint32_t>(pts.size());
     msg.is_dense = false;
@@ -327,7 +347,7 @@ void ActiveMapNode::publish_frame(const Frame& frame) const {
     const auto& surfels = frame.surfels;
     sensor_msgs::msg::PointCloud2 s_cloud;
     s_cloud.header.stamp = rclcpp::Time(frame.meta.pose.stamp_ns);
-    s_cloud.header.frame_id = "sensor_frame";
+    s_cloud.header.frame_id = "tof_frame";
     s_cloud.height = 1;
     s_cloud.width = static_cast<uint32_t>(surfels.size());
     s_cloud.is_dense = false;
@@ -462,7 +482,7 @@ void ActiveMapNode::publish_submap_surfel_ellipsoids(const size_t k_maps, bool s
 
             const Eigen::Quaternionf q(evecs_world);
             const Eigen::Vector3f p = fs.T_submap_world * s.position;
-            const Eigen::Vector3f n_world = R_world * s.normal;
+            // const Eigen::Vector3f n_world = R_world * s.normal;
 
             visualization_msgs::msg::Marker m;
             m.header.frame_id = "odom";

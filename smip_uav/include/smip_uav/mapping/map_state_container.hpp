@@ -81,11 +81,19 @@ public:
     // general interface (shared)
     size_t num_frozen_submaps() const;
 
+    // Latest map<-odom correction from the back-end (GlobalMapNode).
+    // Kept under its own lock since it is updated/read independently of the submap state.
+    void write_map_odom(const Eigen::Isometry3f& T_map_odom);
+    Eigen::Isometry3f read_map_odom() const;
+
 private:
     mutable std::shared_mutex mutex_;
     std::vector<std::unique_ptr<FrozenSubmap>> frozen_submaps_;
     SubmapId next_id_{0};
     std::vector<size_t> id_to_index_;
+
+    mutable std::shared_mutex map_odom_mutex_;
+    Eigen::Isometry3f latest_map_odom_tf_{Eigen::Isometry3f::Identity()};
 };
     
 } // namespace smip_uav

@@ -3,6 +3,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
+#include <sensor_msgs/msg/imu.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <px4_msgs/msg/vehicle_odometry.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
@@ -36,8 +37,8 @@ public:
 
 private:
     void pointcloud_callback(sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg);
-    // void pose_callback(geometry_msgs::msg::PoseStamped::SharedPtr pose_msg);
     void pose_callback(px4_msgs::msg::VehicleOdometry::SharedPtr pose_msg);
+    // void pose_callback(geometry_msgs::msg::PoseStamped::SharedPtr pose_msg);
 
     void convert_pointcloud_message(sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg, Frame& frame);
     std::optional<StampedPose> get_current_pose(int64_t scan_stamp) const;
@@ -64,7 +65,7 @@ private:
     std::unique_ptr<FrameProcessor> frame_processor_;
     std::unique_ptr<SurfelExtractor> surfel_extractor_;
     std::unique_ptr<ActiveMap> active_map_;
-
+    
     RolloverPolicy rollover_policy_;
 
     // Shared state container
@@ -76,6 +77,7 @@ private:
 
     // Static extrinsic: sensor-in-body
     Eigen::Isometry3f T_body_sensor_{Eigen::Isometry3f::Identity()};
+    Eigen::Isometry3f T_body_imu_{Eigen::Isometry3f::Identity()};
 
     // TF broadcasting for RViz2 visualization
     std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;

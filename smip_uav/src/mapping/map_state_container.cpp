@@ -81,4 +81,14 @@ size_t MapStateContainer::num_frozen_submaps() const {
     return frozen_submaps_.size();
 }
 
+void MapStateContainer::write_map_odom(const Eigen::Isometry3f& T_map_odom) {
+    std::unique_lock lock(map_odom_mutex_);
+    latest_map_odom_tf_ = T_map_odom;
+}
+
+Eigen::Isometry3f MapStateContainer::read_map_odom() const {
+    std::shared_lock lock(map_odom_mutex_);
+    return latest_map_odom_tf_;
+}
+
 } // smip_uav

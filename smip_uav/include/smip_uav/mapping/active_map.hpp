@@ -45,6 +45,22 @@ public:
     const Eigen::Isometry3f& T_origin_world() const { return T_origin_world_; }
     const Eigen::Isometry3f& T_latest_world() const { return T_latest_world_; }
 
+    template <class RefSurfelT>
+    void collect_ref_surfels(std::vector<RefSurfelT>& out, bool mature_only = true) const {
+        out.clear();
+        out.reserve(total_surfel_count_);
+        for (const auto& kv : voxel_map_) {
+            for (const ActiveSurfel& as : kv.second.surfels) {
+                if (mature_only && !as.meta.mature) continue;
+                RefSurfelT r;
+                r.position = as.estimate.position;
+                r.normal = as.estimate.normal;
+                r.weight = as.estimate.confidence;
+                out.push_back(r);
+            }
+        }
+    }
+
 private:
     struct VoxelKey {
         int32_t x, y, z;
