@@ -39,8 +39,8 @@ ActiveMapNode::ActiveMapNode(std::shared_ptr<MapStateContainer> container) : Nod
 
     // RO2 Sub/Pub
     cloud_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-        // "tof_pc",
-        "/x500/tof/points_raw",
+        "tof_pc",
+        // "/x500/tof/points_raw",
         rclcpp::SensorDataQoS(),
         std::bind(&ActiveMapNode::pointcloud_callback, this, std::placeholders::_1),
         sub_opt
@@ -81,10 +81,10 @@ ActiveMapNode::ActiveMapNode(std::shared_ptr<MapStateContainer> container) : Nod
 
     // Publish static body-tof
     T_body_sensor_.setIdentity();
-    // T_body_sensor_.rotate(Eigen::Quaternionf(0.70711f, 0.0f, 0.70711f, 0.0f));
-    // T_body_sensor_.pretranslate(Eigen::Vector3f(0.066f, -0.009f, 0.012f));
-    T_body_sensor_.rotate(Eigen::Quaternionf(Eigen::AngleAxisf(M_PI_2, Eigen::Vector3f::UnitX())));
-    T_body_sensor_.pretranslate(Eigen::Vector3f(0.3f, 0.0f, 0.01f));
+    T_body_sensor_.rotate(Eigen::Quaternionf(0.70711f, 0.0f, 0.70711f, 0.0f));
+    T_body_sensor_.pretranslate(Eigen::Vector3f(0.066f, -0.009f, 0.012f));
+    // T_body_sensor_.rotate(Eigen::Quaternionf(Eigen::AngleAxisf(M_PI_2, Eigen::Vector3f::UnitX())));
+    // T_body_sensor_.pretranslate(Eigen::Vector3f(0.3f, 0.0f, 0.01f));
 
 
     auto stf = tf2::eigenToTransform(T_body_sensor_.cast<double>());

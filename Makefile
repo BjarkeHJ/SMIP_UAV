@@ -16,6 +16,7 @@ PROJECT_DIR := $(shell cd "$(dir $(lastword $(MAKEFILE_LIST)))" && pwd)
 DOCKER_DIR := $(PROJECT_DIR)/docker
 
 IMAGE_NAME := voxl-smip
+BUILDER := smip-multiarch-builder
 
 # Onboard ros2 workspace
 ROS2_WS ?= /smip_uav_ws
@@ -74,7 +75,6 @@ help:
 
 
 # =================== SETUP =======================
-BUILDER := smip-multiarch-builder
 
 .PHONY: setup-build-tools
 setup-build-tools:
